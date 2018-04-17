@@ -1,0 +1,1423 @@
+***
+*** Specification of Checkpoiting Algorithm
+***
+
+************************* Basic Data Used ***********************************
+fmod LISTX{X :: TRIV} is
+     sort List .
+     op nil : -> List [ctor] .
+     op _|_ : X$Elt List -> List [ctor] .     
+     op put : List X$Elt  -> List .
+     op del : List X$Elt  -> List .
+     op in : List X$Elt -> Bool .
+    
+     vars M1 M2 : X$Elt .
+     var C : List .   
+     eq in(nil, M1) = false .
+     eq in(M2 | C, M1) = (M1 == M2) or in(C, M1) .
+
+     eq put(nil, M1) = M1 | nil .
+     eq put(M2 | C, M1) = M2 | put(C, M1) .   
+
+     eq del(nil, M1) = nil .
+     eq del(M2 | C, M1) = if M1 == M2 then C else M2 | del(C, M1) fi .
+endfm
+
+fmod DATA is
+     pr NAT .
+     sort Data .
+     op data_ : Nat -> Data [ctor] .
+endfm
+
+fmod LOCAL-STATE is
+     pr DATA .
+     
+     sort LState .
+     subsort Data < LState .
+     op empLS : ->  LState .
+     op _ _ : LState LState -> LState [ctor assoc comm id: empLS] .
+endfm
+
+view Data from TRIV to DATA is
+        sort Elt to Data .
+endv
+
+fmod MID is
+     pr NAT .
+     *** The sort for Mobile IDentifiers.
+     sort Mid .
+     op mb_ : Nat -> Mid [ctor] .
+endfm
+
+fmod MSSID is
+     pr NAT .
+     *** The sort for Mobile Support Station IDentifiers.
+     sort Mssid .
+     op mss_ : Nat -> Mssid [ctor] .
+endfm
+
+fmod ID is
+     pr MID .
+     pr MSSID .
+     
+     sort Id .
+     subsorts Mid Mssid < Id .
+     op null : -> Id .     
+endfm
+
+fmod MID-LIST is
+     pr ID .
+     
+     sort MidSet .
+     subsort Id < MidSet .
+     
+     op empS : -> MidSet .
+     op _ _ : MidSet MidSet -> MidSet [ctor assoc comm id: empS] .
+
+     vars M1 M2 : Id .
+     var S : MidSet .
+     eq M1 M1 = M1 .
+     op delS : MidSet Id -> MidSet .
+     eq delS(empS, M1) = empS .
+     eq delS(M2 S, M1) = if M1 == M2 then S else M2 delS(S, M1) fi .
+
+endfm
+
+fmod CONNECTSTATUTE is
+     *** The sort for Connection Statues.
+     pr MSSID .
+     
+     sort MState .
+     subsort Mssid <  MState .
+     op disC : -> MState .     
+endfm
+
+fmod MESSAGES is
+     pr ID .
+     pr DATA .
+     
+     sort Msg .
+     op (_,_,_) : Id Id Data -> Msg [ctor] .    	
+endfm
+
+view Message from TRIV to MESSAGES is
+        sort Elt to Msg .
+endv
+
+fmod MH is
+     pr MID .
+     pr MESSAGES .
+     pr CONNECTSTATUTE .
+     pr  LOCAL-STATE .
+     
+     sort Mobile .
+     ex (LISTX * (sort List to MessageList)) {Message} .
+     op <_,_,_,_,_> : Mid LState MState MessageList MessageList -> Mobile [ctor] .        
+endfm
+
+fmod MSS is
+     pr MID-LIST .
+     pr MH .
+     
+     sort Station .     
+     op {_,_,_} : Mssid MidSet MessageList -> Station [ctor] .
+endfm
+
+fmod CHANNEL is
+     pr MSS .
+     
+     sort Channel .
+     op [_,_,_] : Id Id MessageList -> Channel [ctor] .        
+endfm
+
+
+fmod CONFIG is
+     pr MH .
+     pr MSS .
+     pr CHANNEL .
+     
+     sort State .
+     sort StateSet .
+     sort Config .
+     sort ConfigSet .
+     
+     subsort Mobile Station Channel < State .
+     subsort State < StateSet .
+     subsort Config < ConfigSet .
+ 
+     op emp : -> State [ctor] . 
+     op _ _ : State State -> State [ctor assoc comm id: emp] .
+     op {_} : State -> Config .
+     
+     op nil  : -> StateSet [ctor] . 
+     op _;_ : StateSet StateSet -> StateSet [ctor assoc id: nil] .
+     
+     op emp : -> ConfigSet [ctor] .
+     op _,_ : ConfigSet ConfigSet -> ConfigSet [ctor assoc comm id: emp] .
+
+     var C : State .
+     var S : Station .
+     var CN : Channel .
+     var MH : Mobile .
+     var MSS : Mssid .
+     var IDL : MidSet .
+     var LMS : MessageList .
+     var ID : Mid .
+     
+     op delID : State Mid -> State .
+     op delIDStation : Station Mid -> Station .
+     
+     eq delIDStation({ MSS, IDL, LMS }, ID) = { MSS, delS(IDL, ID), LMS } .
+     eq delID(emp, ID) = emp .
+     eq delID(S C, ID) = delIDStation(S, ID) delID(C, ID) .
+     eq delID(CN C, ID) = CN delID(C, ID) .
+     eq delID(MH C, ID) = MH delID(C, ID) .
+     
+endfm
+
+fmod R is
+     pr ID .
+     sort Bit .
+     sort Pairbit .
+     sort ListPair .
+     sort Arraybit .
+     subsort Pairbit < ListPair .
+     
+     ops 0 1 : -> Bit .
+     op (_,_) : Id Bit -> Pairbit .
+     op empBit : -> ListPair [ctor] .
+     op _ _ : ListPair ListPair -> ListPair [ctor assoc comm id: empBit] .
+     op R[_] : ListPair -> Arraybit [ctor] .
+
+endfm
+
+
+fmod CSM is
+     pr ID .
+     pr NAT .
+     sort PairCheckNu .
+     sort ListPairCheckNu .
+     sort Csm .
+     subsort PairCheckNu < ListPairCheckNu .
+     
+     op (_,_) : Id Nat -> PairCheckNu .
+     op empCN : ->  ListPairCheckNu [ctor] .
+     op _ _ : ListPairCheckNu ListPairCheckNu -> ListPairCheckNu [ctor assoc comm id: empCN] .
+     op CSM[_] : ListPairCheckNu -> Csm [ctor] .
+
+endfm
+
+fmod WEIGHT is
+     pr ID .
+     pr RAT .
+     sort Weight .     
+     op Weight:_ : Rat  -> Weight [ctor] .
+    
+endfm
+
+fmod TRIGGER is
+     pr ID .
+     pr NAT .
+     pr BOOL .
+     sort Trigger .
+     op NULL : -> Trigger .
+     op Trigger:_,_ : Id Nat -> Trigger [ctor] .
+
+     op getTrigId : Trigger -> Id .
+     op getTrigImun : Trigger -> Nat .
+     var ID : Id .
+     var N : Nat .
+     eq getTrigId(Trigger: ID, N) = ID .
+     eq getTrigId(NULL) = null .
+     eq getTrigImun(Trigger: ID, N) = N .
+     eq getTrigImun(NULL) = 100 .
+endfm
+
+fmod SENT is
+     pr ID .
+     pr NAT .
+     sort Sent .
+     op NULL : -> Sent [ctor] .
+     op Sent:_ : Nat -> Sent [ctor] .
+    
+endfm
+
+fmod CP-STATE is
+     pr ID .
+     pr NAT .
+     sort CP-state .     
+     op CP-state:_ : Nat -> CP-state [ctor] .
+    
+endfm
+
+fmod OLD-CSM is
+     pr ID .
+     pr NAT .
+     sort OLD-csm .     
+     op OLD-csm:_ : Nat -> OLD-csm [ctor] .
+    
+endfm
+
+fmod CHECKPOINT is
+     pr NAT .
+     pr MH .
+     pr MSS .
+     sort Checkpoint .
+     sort CheckpointList .
+     sort CheckMsg .
+     sort CheckMsgSet .
+     sort CheckpointS .
+     subsort CheckMsg < CheckMsgSet .
+     subsort Checkpoint < CheckpointList .
+
+     op (_,_,_) : Id Id Msg -> CheckMsg [ctor] .
+     op nullCheck : -> CheckMsgSet . 
+     op _ _ : CheckMsgSet CheckMsgSet -> CheckMsgSet [ctor assoc comm id: nullCheck] .
+     
+     op Null : -> Checkpoint [ctor] .
+     op empCklist : -> CheckpointList .
+     op Checkpoint:_ _ _ _ : Nat Id  CheckMsgSet CheckMsgSet -> Checkpoint [ctor] .
+     op _ _ : CheckpointList CheckpointList -> CheckpointList [ctor assoc comm id: empCklist] .
+     op CheckpointList:_ :  CheckpointList -> CheckpointS [ctor] .
+    
+endfm
+
+fmod CP is
+     pr TRIGGER .
+     pr CHECKPOINT .
+     pr SENT .
+     pr R .   
+     sort Cp .
+     op NULL : -> Cp [ctor] . 
+     op CP:_ _ _ _ : Checkpoint Arraybit Trigger Sent -> Cp [ctor] .
+    
+endfm
+
+fmod MR is
+     pr CSM .
+     pr R .   
+     sort Mr .  
+     op Mr:_ _ : Arraybit Csm -> Mr [ctor] .
+    
+endfm
+
+
+fmod META-MESSAGES is
+     pr MESSAGES .
+     pr TRIGGER .
+     pr CHECKPOINT .
+     pr SENT .
+     pr R .
+     pr CP .
+     pr CSM .
+     pr WEIGHT .
+     pr CP-STATE .
+     pr OLD-CSM .
+     pr MR .
+     
+     sort Meta-msg .
+     sort Meta-msg-data .
+     sort Meta-msg-request .
+     sort Meta-msg-broadcast .
+     sort Meta-msg-reply .
+     subsorts Meta-msg-data Meta-msg-request Meta-msg-broadcast  Meta-msg-reply  <  Meta-msg .
+     
+     op meta-msg(_ _ _) : Msg PairCheckNu Trigger -> Meta-msg-data [ctor] .
+     op request-msg(_,_,_,_,_,_,_) : Id Id Mr PairCheckNu Trigger PairCheckNu Rat -> Meta-msg-request [ctor] .
+     op broadcast-msg(_,_,_) :  Id Id Trigger -> Meta-msg-broadcast [ctor] .
+     op reply-msg(_,_,_) : Id Id Rat -> Meta-msg-reply [ctor] .
+endfm
+
+
+view Meta-message from TRIV to META-MESSAGES is
+        sort Elt to Meta-msg .
+endv
+
+fmod META-MH is
+     pr MID .
+     pr MSSID .
+     pr META-MESSAGES .
+     pr CONNECTSTATUTE .
+     pr  LOCAL-STATE .
+     
+     sort Meta-mobile .
+     ex (LISTX * (sort List to Meta-messageList)) {Meta-message} .
+     
+     op <_,_,_,_,_> : Mid LState MState Meta-messageList Meta-messageList ->  Meta-mobile [ctor] .        
+endfm
+
+fmod META-MSS is
+     pr META-MH .
+     pr MID-LIST .
+     
+     sort Meta-station .
+     
+     op {_,_,_} : Mssid MidSet Meta-messageList ->  Meta-station [ctor] .
+endfm
+
+fmod META-CHANNEL is
+     pr META-MSS .
+     
+     sort Meta-channel .
+     
+     op [_,_,_] : Id Id Meta-messageList -> Meta-channel [ctor] .        
+endfm
+
+fmod META-STATE is
+     pr META-MH .
+     pr META-MSS .
+     pr META-CHANNEL .
+     sort Meta-state .
+     sort Meta-com .
+     subsort Meta-mobile Meta-station < Meta-state .
+     
+     op meta-pro(_ _ _ _ _ _ _ _ _ _ _ _) : Meta-state Arraybit Csm Weight Trigger Sent CP-state OLD-csm Cp CheckMsgSet CheckMsgSet CheckpointS -> Meta-com [ctor] .
+     op meta-chan(_) : Meta-channel -> Meta-com [ctor] .
+     
+endfm
+
+fmod META-CONFIG is 
+     pr META-STATE .   
+     pr TRIGGER .
+     pr SENT .
+     pr R .
+     pr CP .
+     pr CSM .
+     pr WEIGHT .
+     pr CP-STATE .
+     pr OLD-CSM .
+     
+     sort Meta-config .
+     sort Meta-conf-com .        
+     subsort  Meta-com < Meta-conf-com .
+     
+     op empM : -> Meta-conf-com [ctor] . 
+     op _ _ : Meta-conf-com Meta-conf-com -> Meta-conf-com [ctor assoc comm id: empM] .
+     op {_} : Meta-conf-com -> Meta-config [ctor] .     
+endfm
+
+
+
+mod MOBILE-SYSTEM is
+    pr CONFIG .
+    
+    ops mb1 mb2 mb3 mb4 mb5 mb6 mb7 : -> Mid .
+    ops mss1 mss2 mss3 : -> Mssid .
+    ops data data1 data2 data3 data4 data5 : -> Data .
+    
+    *** op initial : -> Config .
+    *** eq initial = {< mb1, (data1 data2), mss1, nil, nil > < mb2, data3, mss1, nil, nil > < mb3, empLS, mss2, nil, nil > < mb4, data4, mss2, nil, nil > < mb5, empLS, mss2, nil, nil > < mb6, empLS, mss3, nil, nil > < mb7, data5, mss3, nil, nil >  { mss1, mb1  mb2, nil }  { mss2, mb3 mb4 mb5, nil} { mss3, mb1 mb2, nil } [ mss1, mss2, nil ] [ mss2, mss1, nil ] [ mss2, mss3, nil ] [ mss3, mss2, nil ] [ mss3, mss1, nil ] [ mss1, mss3, nil ]} .   
+
+    op initial1 : -> Config .
+    eq initial1 = {< mb1, (data1 data2), mss1, nil, nil > < mb2, data3, mss2, nil, nil > < mb3, data4, mss3, nil, nil >  { mss1, mb1, nil }   { mss2, mb2, nil } { mss3, mb3, nil } [ mb1, mss1, nil ] [ mss1, mb1, nil ] [ mb2, mss2, nil ] [ mss2, mb2, nil ] [ mb3, mss3, nil ] [ mss3, mb3, nil ] [ mss1, mss2, nil ] [ mss2, mss1, nil ] [ mss1, mss3, nil ] [ mss3, mss1, nil ] [ mss3, mss2, nil ] [ mss2, mss3, nil ]} .
+
+    op initial3 : -> Config .
+    eq initial3 = {< mb1, data1, mss1, nil, nil > < mb2, data2, mss2, nil, nil > { mss1, mb1, nil }  { mss2, mb2, nil } [ mb1, mss1, nil ] [ mss1, mb1, nil ] [ mb2, mss2, nil ] [ mss2, mb2, nil ] [ mss1, mss2, nil ] [ mss2, mss1, nil ]} .
+
+    op initial2 : -> Config .
+    eq initial2 = {< mb1, (data1 data2), mss1, nil, nil > < mb2, data3, mss2, nil, nil > < mb3, empLS, mss2, nil, nil > < mb4, data4, mss2, nil, nil > { mss1, mb1, nil }  { mss2, mb2, nil } { mss3, mb3 mb4, nil } [ mb1, mss1, nil ] [ mss1, mb1, nil ] [ mb2, mss2, nil ] [ mss2, mb2, nil ] [ mss1, mss2, nil ] [ mss2, mss1, nil ] [ mss1, mss3, nil ] [ mss3, mss1, nil ] [ mss2, mss3, nil ] [ mss3, mss2, nil ] [ mb3, mss3, nil ] [ mss3, mb3, nil ] [ mb4, mss3, nil ] [ mss3, mb4, nil ]} .
+
+    vars C C1 : State .
+    vars D1 D2 : Data .
+    vars ID ID1 ID2 : Id .
+    vars MB1 MB2 : Mid .
+    vars MSS1 MSS2 MSS3 : Mssid .
+    vars LCS1 LCS2 LCS3 : LState .
+    vars LMS1 LMS2 LMS3 LMS4 LMS5 : MessageList .
+    vars MS MS1 MS2 MS3 : Msg .
+    vars IDL1 IDL2 : MidSet .
+
+    crl [sendMobile] :
+    {< MB1, D1 LCS1, MSS1, LMS1, LMS2 > < MB2, LCS2, MSS2, LMS3, LMS4 > [ MB1, MSS1, LMS5 ] C}
+      =>
+    {< MB1, LCS1, MSS1, LMS1, LMS2 > < MB2, LCS2, MSS2, LMS3, LMS4 > [ MB1, MSS1, put(LMS5, (MB1, MB2, D1))] C} if  not (MSS1 == disC) .
+
+     ***(rl [recieveMobile] :
+     {< MB1, LCS1, MSS1, LMS1, LMS2 > [ ID, MB1, MS1 | LMS5 ] C} 
+     =>
+     {< MB1, LCS1, MSS1, LMS1, put(LMS2, MS1) > [ ID, MB1, LMS5 ] C} .
+
+     rl [recieveMobile1] :
+     {< MB1, LCS1, MSS1, LMS1, (ID, MB1, D1) | LMS2 > C} 
+     =>
+     {< MB1, D1 LCS1, MSS1, LMS1, LMS2 > C} .
+     )
+
+    rl [recieveMobile] :
+    {< MB1, LCS1, MSS1, LMS1, LMS2 > [ ID, MB1, (ID1, MB1, D1) | LMS5 ] C} 
+     =>
+    {< MB1, D1 LCS1, MSS1, LMS1, LMS2 > [ ID, MB1, LMS5 ] C} .
+
+    ***(rl [receiveStation] :
+    {{ MSS1, IDL1, LMS3 } [ ID, MSS1, MS1 |  LMS5 ] C}
+    =>
+    {{ MSS1, IDL1, put(LMS3, MS1)} [ ID, MSS1, LMS5 ]  C} .
+
+    rl [processStationStation] :
+    {{ MSS1, IDL1, (ID, MB2, D1) | LMS1 } { MSS2, MB2 IDL2, LMS2 } [ MSS1, MSS2, LMS4 ]  C}
+    =>
+    {{ MSS1, IDL1,  LMS1 } { MSS2, MB2 IDL2, LMS2 } [ MSS1, MSS2, put(LMS4, (ID, MB2, D1)) ]  C}  .
+
+    rl [processStationToMobile] :
+    {{ MSS1, MB2 IDL1, (ID, MB2, D1) | LMS1 } [ MSS1, MB2, LMS4 ] C}
+    =>
+    {{ MSS1, MB2 IDL1,  LMS1 }  [ MSS1, MB2, put(LMS4, (ID, MB2, D1)) ] C} .
+
+    rl [processStationToNone] :
+    {{ MSS1, MB2 IDL1, (ID, MB2, D1) | LMS1 }  < MB2, LCS2, disC, LMS2, LMS3 > C} 
+    =>
+    {{ MSS1, MB2 IDL1,  put(LMS1, (ID, MB2, D1)) } < MB2, LCS2, disC, LMS2, LMS3 > C} .)
+
+    ***(rl [receiveStation] :
+    {{ MSS1, IDL1, LMS3 } [ ID, MSS1, MS1 |  LMS5 ] C}
+    =>
+    {{ MSS1, IDL1, put(LMS3, MS1)} [ ID, MSS1, LMS5 ]  C} .)
+
+    rl [processStationStation] :
+    {{ MSS1, IDL1,  LMS1 } [ ID, MSS1, (ID1, MB2, D1) | LMS5 ] { MSS2, MB2 IDL2, LMS2 } [ MSS1, MSS2, LMS4 ]  C}
+    =>
+    {{ MSS1, IDL1,  LMS1 } [ ID, MSS1, LMS5 ] { MSS2, MB2 IDL2, LMS2 } [ MSS1, MSS2, put(LMS4, (ID1, MB2, D1)) ]  C}  .
+
+    rl [processStationToMobile] :
+    {{ MSS1, MB2 IDL1,  LMS1 } [ ID, MSS1, (ID1, MB2, D1) | LMS5 ] [ MSS1, MB2, LMS4 ] C}
+    =>
+    {{ MSS1, MB2 IDL1,  LMS1 }  [ ID, MSS1, LMS5 ] [ MSS1, MB2, put(LMS4, (ID1, MB2, D1)) ] C} .
+
+    rl [processStationToNone] :
+    {{ MSS1, MB2 IDL1, LMS1 }  [ ID, MSS1, (ID1, MB2, D1) |  LMS5 ] < MB2, LCS2, disC, LMS2, LMS3 > C} 
+    =>
+    {{ MSS1, MB2 IDL1, LMS1 } [ ID, MSS1, put(LMS5, (ID1, MB2, D1)) ] < MB2, LCS2, disC, LMS2, LMS3 > C} .
+
+     crl [disMobile] :
+     {< MB1, LCS1, MSS1, LMS1, nil >  [ MSS1, MB1, nil ] C}
+     =>
+     {< MB1, LCS1, disC, LMS1, nil >  [ MSS1, MB1, nil ] C} if not (MSS1 == disC)  .
+
+     rl [reConMobile] :
+     {< MB1, LCS1, disC, LMS1, LMS2 > { MSS1, IDL1, LMS3 } C}
+      =>
+     {< MB1, LCS1, MSS1, LMS1, LMS2 > { MSS1, MB1 IDL1, LMS3 } reConnect(C, MB1, MSS1)} .
+
+     op reConnect : State Mid Mssid -> State .
+     op move : State Mid Mssid -> State .
+     eq reConnect(C, MB1, MSS1) = move(delID(C, MB1), MB1, MSS1) .
+     eq move([ MSS1, MB1, nil ] [ MB1, MSS1, nil ] C, MB1, MSS2) = [ MSS2, MB1, nil ] [ MB1, MSS2, nil ] C .
+     *** eq move({C}, MB1, MSS2) = {C} [owside] .
+     
+     
+
+endm
+
+fmod INIT is
+     pr CONFIG .
+     pr META-CONFIG .
+     
+       
+    vars D1 D2 : Data .
+    vars MB1 MB2 : Mid .
+    vars MSS1 MSS2 MSS3 : Mssid .
+    vars LCS1 LCS2 LCS3 : LState .
+    vars ID ID1 ID2 : Id .
+    vars LMS1 LMS2 LMS3 LMS4 LMS5 : Meta-messageList .
+    vars IDL1 IDL2 : MidSet .
+    vars R1 R2 : Arraybit .
+    vars CSM1 CSM2 : Csm .
+    vars W1 W2 : Weight .
+    vars TR1 TR2 : Trigger .
+    vars S1 S2 : Sent .
+    vars CS1 CS2 : CP-state .
+    vars OLD1 OLD2 : OLD-csm .
+    vars CP1 CP2 : Cp .
+    vars PA : PairCheckNu .
+    vars N1 N2 : Nat .
+    vars CF CF1 : Config .
+    vars CFL CFL1 : ConfigSet .
+    var LPC :  ListPairCheckNu .
+    vars MC MC1 : Meta-config .
+    vars C C1 C2 C3 : State .
+    vars M M1 M2 : Mobile .
+    vars ST ST1 ST2 : Station .
+    var S : Station .
+    var CN : Channel .
+    vars CSML CSML1 : ListPairCheckNu .
+    var RL : ListPair .
+    var CL : CheckpointList .
+    vars SS1 SS2 SS3 : StateSet .  
+    
+    op init : Config -> Meta-config .
+    op init1 : Config ListPairCheckNu ListPair -> Meta-conf-com .   
+    op init-mb : Mobile ListPairCheckNu ListPair -> Meta-com .
+    op init-mss : Station ListPairCheckNu ListPair -> Meta-com .
+    op init-chan : Channel -> Meta-com .
+    op csm-init : Config -> ListPairCheckNu .
+    op r-init : Config -> ListPair .
+    op getCsm : Station -> ListPairCheckNu .
+    
+    op geneInitial : Nat Nat -> ConfigSet .
+    op geneInitial : MidSet MidSet -> ConfigSet .
+    op makeListMB : Nat -> MidSet .
+    op makeListMSS : Nat -> MidSet .
+    op geneMSS : MidSet -> State .
+    op geneMBB : MidSet MidSet -> StateSet .
+    op geneInitialList : State State StateSet -> ConfigSet .
+    op geneChannel : MidSet MidSet -> State .
+    op geneChannel1 : Mssid MidSet -> State .
+    op geneMBMSS : MidSet MidSet -> State .
+    op com : Mid MidSet -> State .
+    op getSet : MidSet MidSet -> StateSet .
+    op getSet1 : StateSet -> StateSet .
+    op mk : StateSet -> StateSet .
+    op mk1 : Mobile StateSet -> StateSet .
+    op maMss : State -> State .
+    op getIdset : State State -> State .
+    op addData : LState ConfigSet -> ConfigSet .
+
+    op count : ConfigSet -> Nat .
+    eq count(CF, CFL) = 1 + count(CFL) .
+    eq count(emp) = 0 .
+
+    eq geneInitial(N1, N2) = addData(data(1) data(2) data(3), geneInitial(makeListMB(N1), makeListMSS(N2))) .
+    eq makeListMB(0) = empS .
+    eq makeListMB(N1) = mb N1 makeListMB(sd(N1, 1)) .
+    eq makeListMSS(0) = empS .
+    eq makeListMSS(N1) = mss N1 makeListMSS(sd(N1, 1)) .
+    eq geneInitial(IDL1, IDL2) = geneInitialList(geneMSS(IDL2), geneChannel(IDL2, IDL2), geneMBB(IDL1, IDL2)) . 
+    eq geneChannel(MSS1 IDL1, IDL2) = geneChannel1(MSS1, IDL2)  geneChannel(IDL1, IDL2) .
+    eq geneChannel(empS, IDL2) = emp .
+    eq geneChannel1(MSS1,  MSS2 IDL2) = [ MSS1, MSS2, nil ] geneChannel1(MSS1, IDL2) .
+    eq geneChannel1(MSS1, empS) = emp .
+    eq geneMSS(MSS1 IDL1) = { MSS1, empS, nil } geneMSS(IDL1) .
+    eq geneMSS(empS) = emp .
+    eq geneMBB(IDL1, IDL2) = mk(getSet(IDL1, IDL2)) .
+    eq addData(LCS1, {(< MB1, empLS, MSS1, nil, nil >) C1} , CFL) =  {(< MB1, LCS1, MSS1, nil, nil >) C1}, addData(LCS1, CFL) .
+    eq addData(LCS1, emp) = emp .
+
+    eq com(MB1, MSS1 IDL1) = (< MB1, empLS, MSS1, nil, nil >) com(MB1, IDL1) .
+    eq com(MB1, empS) = emp .
+    eq getSet(empS, IDL2) = nil .
+    eq getSet(MB1 IDL1, IDL2) = com(MB1, IDL2) ; getSet(IDL1, IDL2) .
+
+    eq mk((M1 C1) ; nil) = M1 ; mk(C1 ; nil) .
+    eq mk((M1 C1) ; SS1) = mk1(M1, mk(SS1)) ; mk(C1 ; SS1) [owise] .
+    eq mk(emp ; SS1) = nil .
+    eq mk1(M1, C1 ; SS1) = (M1 C1) ; mk1(M1, SS1) .
+    eq mk1(C1, nil) = nil .
+
+    eq geneInitialList(C1, C2, C3 ; SS1) =  { getIdset(C1, C3) C2 C3 } , geneInitialList(C1, C2, SS1) .
+    eq geneInitialList(C1, C2, nil) = emp .
+    eq getIdset({ MSS1, IDL1, nil } C1, < MB1, empLS, MSS1, nil, nil >  C2) =  getIdset({ MSS1, MB1 IDL1, nil } [ MSS1, MB1, nil ] [ MB1, MSS1, nil ] C1, C2)  . 
+    eq getIdset(C1, emp) = C1 .
+    
+
+    eq init(CF) = { init1(CF, csm-init(CF),  r-init(CF)) } .
+    eq init1({emp}, CSML, RL) = empM .
+    eq init1({M C}, CSML, RL) = init-mb(M, CSML, RL) init1({C}, CSML, RL) .
+    eq init1({S C}, CSML, RL) = init-mss(S, CSML, RL) init1({C}, CSML, RL) .
+    eq init1({CN C}, CSML, RL) = init-chan(CN) init1({C}, CSML, RL) .
+    eq getCsm({ MSS1, ID IDL1, nil }) = (ID, 0) getCsm({ MSS1, IDL1, nil }) .
+    eq getCsm({ MSS1, empS, nil }) = empCN .
+    
+    eq csm-init({emp}) = empCN .
+    eq csm-init({< MB1, LCS1, MSS1, nil, nil >  C}) = (MB1, 0) csm-init({C}) .
+    eq csm-init({CN C}) = csm-init({C}) .
+    eq csm-init({{ MSS1, IDL1, nil } C}) = (MSS1, 0) csm-init({C}) .
+
+    eq r-init({emp}) = empBit .
+    eq r-init({< MB1, LCS1, MSS1, nil, nil > C}) = (MB1, 0) r-init({C}) .
+    eq r-init({CN C}) = r-init({C}) .
+    eq r-init({{ MSS1, IDL1, nil } C}) = (MSS1, 0) r-init({C}) .
+      
+    eq init-mb(< MB1, LCS1, MSS1, nil, nil >, CSML, RL) =  meta-pro(< MB1, LCS1, MSS1, nil, nil > R[RL] CSM[CSML] (Weight: 0) (Trigger: MB1, 0) (Sent: 0) (CP-state: 0)  (OLD-csm: 0) NULL nullCheck nullCheck (CheckpointList: empCklist)) . 
+    eq init-chan([ ID1, ID2, nil ]) = meta-chan([ ID1, ID2, nil ]) .
+    eq init-mss({ MSS1, IDL1, nil }, CSML, RL) =  meta-pro({ MSS1, IDL1, nil }  R[RL] CSM[CSML] (Weight: 0) (Trigger: MSS1, 0) (Sent: 0) (CP-state: 0)  (OLD-csm: 0) NULL nullCheck nullCheck (CheckpointList: empCklist)) .
+    
+    ops a b 1 2 : ->  Mobile .
+    
+endfm
+
+mod CHECKPOINT-ALGORITHM is
+    pr META-CONFIG .
+    pr MOBILE-SYSTEM .
+    pr INIT .
+
+    vars C C1 : Meta-conf-com .
+    vars D1 D2 : Data .
+    vars MB MB1 MB2 : Mid .
+    vars MSS MSS1 MSS2 MSS3 : Mssid .
+    vars LCS LCS1 LCS2 LCS3 : LState .
+    vars M1 : Meta-msg .
+    vars LMS1 LMS2 LMS3 LMS4 LMS5 : Meta-messageList .
+    vars IDL1 IDL2 : MidSet .
+    vars R R1 R2 : Arraybit .
+    vars CSM CSM1 CSM2 : Csm .
+    vars W W1 W2 : Weight .
+    vars TR TR1 TR2 TR3 : Trigger .
+    vars S S1 S2 : Sent .
+    vars CS1 CS2 : CP-state .
+    vars OLD1 OLD2 : OLD-csm .
+    vars CP1 CP2 : Cp .
+    vars PA PA1 PA2 : PairCheckNu .
+    vars N N1 N2 N3 N4 N5 N6 N7 N8 N9 N10 : Nat .
+    vars LPC LPC1 LPC2 :  ListPairCheckNu .
+    var M : Meta-mobile .
+    var CN : Meta-channel .
+    var LP LP1 LP2 : ListPair .
+    vars ID ID1 ID2 ID3 : Id .
+    vars B B1 B2 B3 : Bit .
+    vars CM1 CM2 CM3 CM4 : CheckMsgSet .
+    vars MR MR1 MR2 : Mr .
+    vars I I1 I2 : Rat .
+    vars ST ST1 ST2 : Meta-state .
+    vars CL CL1 CL2 : CheckpointS .
+    vars CPK CPK1 CPK2 : Checkpoint .
+    vars CPL CPL1 CPL2 : CheckpointList .
+    vars MGBS1 MGBS2 MGBS3 : Meta-msg-broadcast .
+    vars RL RL1 RL2 RL3 : Meta-msg-reply .
+    vars CO CO1 CO2 : Meta-com .
+    var MS : Meta-msg .
+    var MSTT : Meta-station .
+    vars PB PB1 PB2 : Pairbit .
+    var MQ : Meta-msg-request .
+ 
+
+    op csm-initM : Meta-config -> ListPairCheckNu .
+    op r-initM : Meta-config -> ListPair .
+    op pro-cp1(_,_,_,_,_,_,_) : Meta-conf-com Arraybit  Csm  Mr Id Trigger Rat -> Meta-conf-com .
+    op reset : Arraybit -> Arraybit .
+    op reset1 : ListPair -> ListPair .
+    op sum :  ListPair -> Nat .
+    op weight : Arraybit -> Rat .
+    op cpTrigger : Cp -> Trigger .
+    op cpR : Cp -> Arraybit .
+    op add : Cp CheckpointS -> CheckpointS .
+
+
+    op maxB : Bit Bit -> Bit [comm] .
+    eq maxB(1, 0) = 1 .
+    eq maxB(1, 1) = 1 .
+    eq maxB(0, 0) = 0 .
+    
+    eq weight(R[LP]) = if (sum(LP) == 0) then 0 else (1 / sum(LP)) fi .
+    eq sum(empBit) = 0 .
+    eq sum((ID, B) LP) = if B == 1 then 1 + sum(LP) else sum(LP) fi .
+    eq cpTrigger(NULL) = NULL .
+    eq cpTrigger(CP: CPK R TR S) = TR .
+   
+    
+    op cpSent : Cp -> Sent .
+    op cpR : Cp -> Arraybit .    
+    eq cpSent(NULL) = NULL .
+    eq cpSent(CP: CPK R TR S) = S .
+    eq cpR(NULL) = R[empBit] .
+    eq cpR(CP: CPK R TR S) = R .
+    
+    eq add((CP: CPK R TR S), CheckpointList: CPL) = CheckpointList: (CPK CPL) .
+ 
+    eq csm-initM({empM}) = empCN .
+    eq csm-initM({meta-pro(M R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1)  C}) = csm-initM({C}) .
+    eq csm-initM({meta-chan(CN) C}) = csm-initM({C}) .
+    eq csm-initM({meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) C}) = (MSS1, 0) csm-initM({C}) .
+
+    eq r-initM({empM}) = empBit .
+    eq r-initM({meta-pro(M R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) C}) = r-initM({C}) .
+    eq r-initM({meta-chan(CN) C}) = r-initM({C}) .
+    eq r-initM({meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) C}) = (MSS1, 0) r-initM({C}) .
+
+    eq reset(R[LP]) = R[reset1(LP)] .
+    eq reset1(empBit) =  empBit .
+    eq reset1((ID, B) LP) = (ID, 0) reset1(LP) .
+
+    op broadcast : Id Trigger Meta-conf-com ->  Meta-conf-com .
+    eq broadcast(MB1, TR, meta-pro(< MB2, LCS1, MSS2, LMS1, LMS2 > R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MB1, MSS1, LMS3]) C) =  meta-pro(< MB2, LCS1, MSS2, LMS1, LMS2 > R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) broadcast(MB1, TR, meta-chan([ MB1, MSS1, put(LMS3, broadcast-msg(MB1, MB2, TR))]) C) .
+
+    eq broadcast(MB1,  TR, meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1 ) meta-chan([ MB1, MSS1, LMS3]) C) =  meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1 ) broadcast(MB1, TR,  meta-chan([ MB1, MSS1, put(LMS3, broadcast-msg(MB1, MSS2, TR))]) C) .
+    
+    eq broadcast(MSS1, TR, meta-pro(< MB1, LCS1, MSS2, LMS1, LMS2 > R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1)  meta-chan([ MSS3, MB1, LMS3]) C) =  meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS3, MB1, put(LMS3, broadcast-msg(MSS1, MB1, TR))]) broadcast(MSS1, TR, C) .
+
+    eq broadcast(MSS1,  TR, meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1 ) meta-chan([ MSS1, MSS2, LMS3]) C) =  meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1 ) broadcast(MSS1, TR,  meta-chan([ MSS1, MSS2, put(LMS3,  broadcast-msg(MSS1, MSS2, TR))]) C) . 
+    
+     eq broadcast(ID, TR, empM ) = empM .
+     eq broadcast(ID, TR, CO C ) =  CO broadcast(ID, TR, C) [owise] .
+
+     op Us :  Sent Sent -> Sent [comm] .
+     op Us1 :  Nat Nat -> Nat [comm] .
+     op Ub : Bit Bit -> Bit [comm] .
+     op U : Arraybit Arraybit -> Arraybit [comm] .
+     op U1 : ListPair ListPair -> ListPair [comm] .
+     eq Us1(1, 1) = 1 .
+     eq Us1(0, 0) = 0 .
+     eq Us1(1, 0) = 1 .
+     eq Us(Sent: N1, Sent: N2) = Sent: Us1(N1, N2) .
+     eq Ub(1, 1) = 1 .
+     eq Ub(0, 0) = 0 .
+     eq Ub(1, 0) = 1 .
+     eq U(R[LP1], R[LP2]) = R[U1(LP1, LP2)] .
+     eq U1((ID, B1) LP1, (ID, B2) LP2) = (ID, (Ub(B1, B2))) U1(LP1, LP2) .
+     eq U1(empBit, LP1) = LP1 .
+
+     op delID : Meta-conf-com Mid -> Meta-conf-com .
+     op delIDStation : Meta-com Mid -> Meta-com .
+     
+     eq delIDStation(meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1), ID) = meta-pro({ MSS1, delS(IDL1, ID), LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) .
+     eq delID(empM, ID) = empM .
+     eq delID(meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) C, ID) = delIDStation(meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1), ID) delID(C, ID) .
+     eq delID(CO C, ID) = CO delID(C, ID) [owise] .
+
+     op temp : Mr Arraybit Csm -> Mr .
+     op culR : ListPair ListPair -> ListPair [comm] .  
+     op CulCsm : ListPairCheckNu ListPairCheckNu -> ListPairCheckNu [comm] .
+     
+     eq temp(Mr: R[LP] CSM[LPC], R[LP1], CSM[LPC1]) = Mr: R[culR(LP, LP1)] CSM[CulCsm(LPC, LPC1)] .
+     eq culR((ID, B1) LP, (ID, B2) LP1) = (ID, maxB(B1, B2)) culR(LP, LP1) .
+     eq culR(empBit, LP) = LP .
+     eq CulCsm((ID, N) LPC, (ID, N1) LPC1) = (ID, max(N, N1))  CulCsm(LPC, LPC1) .
+     eq CulCsm(empCN, LPC) = LPC .
+
+
+     op getTriggerId : Trigger -> Id .
+     op getTriggerImun : Trigger -> Nat .
+     op setTrigger : Trigger Nat -> Trigger .
+     eq getTriggerId(Trigger: ID, N) = ID .
+     eq getTriggerImun(Trigger: ID, N) = N .
+     eq setTrigger((Trigger: ID, N), N2) = (Trigger: ID, N2) .
+
+     op getCsmN : Csm Id -> Nat .
+     op getCsmN1 : PairCheckNu Id -> Nat .
+     eq getCsmN(CSM[PA], ID) = getCsmN1(PA, ID) .
+     eq getCsmN1((ID, N) PA, ID) = N .
+     
+
+     op checkInit : Meta-conf-com ->  Bool .
+     op checkInit1 : Meta-config ->  Bool .
+     op checkCP : Meta-conf-com ->  Bool .
+     op checkTakenCP : Meta-conf-com ->  Bool .
+     eq checkInit(C) = checkCP(C) and checkTakenCP(C) .
+     eq checkInit1({C}) = checkInit(C) .
+     eq checkCP(empM) = true .
+     eq checkCP(meta-pro(ST R1 CSM1 W1 TR1 S1 (CP-state: N) OLD1 CP1 CM1 CM2 CL1) C) = if (N == 1) then false else checkCP(C) fi .
+     eq checkCP(meta-chan([ ID1, ID2, LMS2 ]) C) = checkCP(C) .
+
+     eq checkTakenCP(empM) = true .
+     eq checkTakenCP(meta-pro(ST R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 (CheckpointList: CPL)) C) = if (CPL =/= empCklist) then false else checkTakenCP(C) fi .
+     eq checkTakenCP(meta-chan([ ID1, ID2, LMS2 ]) C) = checkTakenCP(C) .
+     
+     op prop-cp : Arraybit Mr Id Trigger Csm Weight  Meta-conf-com ->  Meta-conf-com .
+     op prop-cp-sent : Arraybit Mr Mr Id Trigger Csm Weight Meta-conf-com ->  Meta-conf-com .     
+     eq prop-cp(R, MR, ID, TR, CSM, W, C) = prop-cp-sent(R, MR, temp(MR, R, CSM), ID, TR, CSM, W, C) .
+     eq prop-cp-sent(R, MR, MR1, ID, TR, CSM, W, empM) = empM .
+     ceq prop-cp-sent(R[(MB1, 1) LP], Mr: R[LP1] CSM[(MB1, N1) LPC], MR1, ID, TR, CSM[(MB1, N2) (ID, N3) LPC1], (Weight: I),  meta-pro(< MB1, LCS1, ID1, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, LMS2 ]) C) =  meta-pro(< MB1, LCS1, ID1, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, put(LMS2, request-msg(ID, MB1, MR1, (ID, N3), TR, (MB1, N2), I))]) prop-cp-sent(R[(MB1, 1) LP], Mr: R[LP1] CSM[(MB1, N1) LPC], MR1, ID, TR, CSM[(MB1, N2) LPC1], (Weight: (I / 2)), C) if (max(N1, N2) =/= N1) .
+     
+     ceq prop-cp-sent(R[(MSS1, 1) LP], Mr: R[LP1] CSM[(MSS1, N1) LPC], MR1, MSS, TR, CSM[(MSS1, N2) (MSS, N3) LPC1], (Weight: I),  meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS, MSS1, LMS2 ]) C) =  meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS, MSS1, put(LMS2, request-msg(MSS, MSS1, MR1, (MSS, N3), TR, (MSS1, N2), I))]) prop-cp-sent(R[(MSS1, 1) LP], Mr: R[LP1] CSM[(MSS1, N1) LPC], MR1, MSS, TR, CSM[(MSS1, N2) LPC1], (Weight: (I / 2)), C) if (max(N1, N2) =/= N1) .
+     
+      ceq prop-cp-sent(R[(MSS1, 1) LP], Mr: R[LP1] CSM[(MSS1, N1) LPC], MR1, MB, TR, CSM[(MSS1, N2) (MB, N3) LPC1], (Weight: I),  meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MB, MSS2, LMS2 ]) C) =  meta-pro({ MSS1, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MB, MSS2, put(LMS2, request-msg(MB, MSS1, MR1, (MB, N3), TR, (MSS1, N2), I))]) prop-cp-sent(R[(MSS1, 1) LP], Mr: R[LP1] CSM[(MSS1, N1) LPC], MR1, MB, TR, CSM[(MSS1, N2) LPC1], (Weight: (I / 2)), C) if (max(N1, N2) =/= N1) .
+      
+     eq prop-cp-sent(R, MR, MR1, ID, TR, CSM, W, meta-chan([ ID1, ID2, LMS2 ]) C) = meta-chan([ ID1, ID2, LMS2 ]) prop-cp-sent(R, MR, MR1, ID, TR, CSM, W, C) .
+     eq prop-cp-sent(R, MR, MR1, ID, TR, CSM, W, meta-pro(ST R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) C) =  meta-pro(ST R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1)  prop-cp-sent(R, MR, MR1, ID, TR, CSM, W, C) [owise] .    
+
+
+    *** Actions taken when a process sends a computation message
+    crl [sendMobile1] :
+    {meta-pro(< MB1, D1 LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N1) LPC] W1 TR1 (Sent: N2) (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) meta-pro(< MB2, LCS2, MSS2, LMS3, LMS4 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2)  meta-chan([ MB1, MSS1, LMS5 ]) C}
+     =>
+    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N1) LPC] W1 TR1 (Sent: 1) (CP-state: 0) OLD1 CP1 ((MB1, MSS1, (MB1, MB2, D1)) CM1) CM2 CL1) meta-pro(< MB2, LCS2, MSS2, LMS3, LMS4 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MB1, MSS1, put(LMS5, meta-msg((MB1, MB2, D1) (MB1, N1) NULL))]) C} if  not (MSS1 == disC) .
+
+   crl [sendMobile2] :
+    {meta-pro(< MB1, D1 LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N1) LPC] W1 TR1 (Sent: N2) (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) meta-pro(< MB2, LCS2, MSS2, LMS3, LMS4 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2)  meta-chan([ MB1, MSS1, LMS5 ]) C}
+     =>
+    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N1) LPC] W1 TR1 (Sent: 1) (CP-state: 1) OLD1 CP1 ((MB1, MSS1, (MB1, MB2, D1)) CM1) CM2 CL1) meta-pro(< MB2, LCS2, MSS2, LMS3, LMS4 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MB1, MSS1, put(LMS5, meta-msg((MB1, MB2, D1) (MB1, N1) TR1))]) C} if  not (MSS1 == disC) .
+
+
+  rl [processStationStation1] :
+    { meta-pro({ MSS1, IDL1, meta-msg((ID, MB2, D1) (ID1, N) TR) | LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  (Sent: N2) (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) meta-pro({ MSS2, MB2 IDL2, LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MSS1, MSS2, LMS4 ]) C}
+    =>
+    { meta-pro({ MSS1, IDL1, LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1 (Sent: 1) (CP-state: 0) OLD1 CP1 ((MSS1, MSS2, (ID, MB2, D1)) CM1)  CM2 CL1) meta-pro({ MSS2, MB2 IDL2, LMS2 }  R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2)  meta-chan([ MSS1, MSS2, put(LMS4, meta-msg((ID, MB2, D1) (MSS1, N1) NULL))]) C }  .
+
+  rl [processStationStation2] :
+    { meta-pro({ MSS1, IDL1, meta-msg((ID, MB2, D1) (ID1, N) TR) | LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  (Sent: N2) (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) meta-pro({ MSS2, MB2 IDL2, LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MSS1, MSS2, LMS4 ]) C}
+    =>
+    { meta-pro({ MSS1, IDL1, LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1 (Sent: 1) (CP-state: 1) OLD1 CP1 ((MSS1, MSS2, (ID, MB2, D1)) CM1)  CM2 CL1) meta-pro({ MSS2, MB2 IDL2, LMS2 }  R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2)  meta-chan([ MSS1, MSS2, put(LMS4, meta-msg((ID, MB2, D1) (MSS1, N1) TR1))]) C }  .
+
+   rl [processStationToMobile1] :
+    {meta-pro({ MSS1, MB2 IDL1, meta-msg((ID, MB2, D1) (MB, N) TR) | LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  (Sent: N2) (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB2, LMS4 ]) C}
+     =>
+    {meta-pro({ MSS1, MB2 IDL1, LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  (Sent: 1) (CP-state: 0) OLD1 CP1 ((MSS1, MB2, (ID, MB2, D1)) CM1) CM2 CL1) meta-chan([ MSS1, MB2, put(LMS4, meta-msg((ID, MB2, D1) (MSS1, N1) NULL)) ]) C} .
+
+
+    rl [processStationToMobile2] :
+    {meta-pro({ MSS1, MB2 IDL1, meta-msg((ID, MB2, D1) (MB, N) TR) | LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  (Sent: N2) (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB2, LMS4 ]) C}
+     =>
+    {meta-pro({ MSS1, MB2 IDL1, LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  (Sent: 1) (CP-state: 1) OLD1 CP1 ((MSS1, MB2, (ID, MB2, D1)) CM1) CM2 CL1) meta-chan([ MSS1, MB2, put(LMS4, meta-msg((ID, MB2, D1) (MSS1, N1) TR1)) ]) C} .
+
+    rl [processStationToNone] :
+    {meta-pro({ MSS1, MB2 IDL1,  meta-msg((ID, MB2, D1) (MB, N) TR) | LMS1 } R1 CSM1  W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro(< MB2, LCS2, disC, LMS2, LMS3 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) C} 
+    =>
+    {meta-pro({ MSS1, MB2 IDL1,  put(LMS1, meta-msg((ID, MB2, D1) (MB, N) TR)) } R1 CSM1  W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro(< MB2, LCS2, disC, LMS2, LMS3 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) C} .
+
+    *** rl [ProgessMobileMsg] :
+    *** { meta-pro(< MB1, LCS1, MSS1, LMS1,  meta-msg((ID, MB1, D1) (ID1, N1) (Trigger: ID2, N2)) | LMS2 >  R1 CSM1 W1  TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) C }
+    ***  => 
+    *** { meta-pro(< MB1, D1 LCS1, MSS1, LMS1, LMS2 >  R1 CSM1 W1  TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) C } .
+    
+    *** Actions taken when a channel transfer a computation message to a mobile
+
+
+*** Request messages
+*** Actions for a initiator
+
+    crl [initiatorMSS] :
+    { meta-pro({ MSS1, IDL1, LMS1 } R1 CSM[(MSS1, N1) LPC] W1 TR1  S1 (CP-state: 0) OLD1 NULL CM1 CM2 (CheckpointList: empCklist)) C }
+     =>
+    { meta-pro({ MSS1, IDL1,  LMS1 } reset(R1) CSM[(MSS1, N1 + 1) LPC] (Weight: 0) (Trigger: MSS1, N1 + 1) (Sent: 0) (CP-state: 1) (OLD-csm: (N1 + 1)) NULL nullCheck nullCheck  (CheckpointList: (Checkpoint: (N1 + 1) MSS1 CM1 CM2))) prop-cp(R1, Mr: R[(MSS1, 1) r-initM({C})] CSM[(MSS1,  N1 + 1) csm-initM({C})], MSS1, (Trigger: MSS1, N1 + 1), CSM[(MSS1, N1 + 1) LPC], (Weight: 1), C) } if checkInit(C) .
+    
+     crl [initiatorMH1] :
+    { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N1) LPC] W1 TR1  S1 (CP-state: 0) OLD1 NULL CM1 CM2 (CheckpointList: empCklist)) C}
+     =>
+    { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > reset(R1) CSM[(MB1, N1 + 1) LPC] (Weight: 0) (Trigger: MB1, N1 + 1) (Sent: 0) (CP-state: 1) (OLD-csm: (N1 + 1)) NULL nullCheck nullCheck (CheckpointList: (Checkpoint: (N1 + 1) MB1 CM1 CM2))) prop-cp(R1, Mr: R[(MB1, 1) r-initM({C})] CSM[(MB1,  N1 + 1) csm-initM({C})], MB1, (Trigger: MB1, N1 + 1), CSM[(MB1, N1 + 1) LPC], (Weight: 1), C)} if checkInit(C) .
+
+
+*** Actions taken when a process receive a checkpoint request
+     rl [recieveRequestMobile] :
+    { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N3) (ID, N4) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 0) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, request-msg(ID, MB1, MR, (ID, N1), (Trigger: ID, N), (MB1, N2), I) | LMS4]) meta-chan([ MB1, MSS1, LMS3]) C }
+     =>  
+    if (N5 > N2) then { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N3) (ID, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 0) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, LMS4])  meta-chan([ MB1, MSS1, put(LMS3, reply-msg(MB1, ID, I))]) C }
+    else
+        if ((Trigger: ID, N) == TR1) then if (cpTrigger(CP1) == (Trigger: ID, N)) then { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N3) (ID, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 1) (OLD-csm: N3) NULL CM1 CM2 add(CP1, CL1)) meta-chan([ MSS1, MB1, LMS4])  meta-chan([ MB1, MSS1, put(LMS3, reply-msg(MB1, ID, I1))]) prop-cp(cpR(CP1), MR, MB1, (Trigger: ID, N), CSM[(MB1, N3) (ID, N4) LPC], (Weight: I), C) }    
+    	    	       	      	          else  { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM[(MB1, N3) (ID, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 1) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, LMS4]) meta-chan([ MB1, MSS1, put(LMS3, reply-msg(MB1, ID, I))]) C }  fi
+         else  { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > reset(R1) CSM[(MB1, N3 + 1) (ID, N1) LPC] (Weight: I1) (Trigger: ID, N)  (Sent: 0) (CP-state: 1) (OLD-csm: (N3 + 1)) CP1 nullCheck nullCheck (CheckpointList: (Checkpoint: N1 MSS1 CM1 CM2))) meta-chan([ MSS1, MB1, LMS4]) meta-chan([ MB1, MSS1, put(LMS3, reply-msg(MB1, ID, I1))]) prop-cp(R1, MR, MB1, (Trigger: ID, N), CSM[(MB1, N3) (ID, N4) LPC], (Weight: I), C) } fi fi .
+
+
+   rl [recieveRequestStation] :
+    { meta-pro({ MSS1, IDL1, LMS1} R1 CSM1 W1  TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, request-msg(ID, MB2, MR, PA1, TR3, PA2, I) | LMS3])  meta-pro({ MSS2, MB2 IDL2, LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MSS1, MSS2, LMS4 ]) C}
+     =>  
+     { meta-pro({ MSS1, IDL1, LMS1} R1 CSM1 W1  TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3])  meta-pro({ MSS2, MB2 IDL2, LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MSS1, MSS2,  request-msg(ID, MB2, MR, PA1, TR3, PA2, I) | LMS4 ]) C} .
+
+
+    rl [recieveRequestStation] :
+    { meta-pro({ MSS1, IDL1, request-msg(MB, MSS1, MR, (MB, N1), (Trigger: MB, N), (MSS1, N2), I) | LMS2} R1 CSM[(MSS1, N3) (MB, N4) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 0) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS2, MB, LMS3]) C }
+     =>  
+    if (N5 > N2) then { meta-pro({ MSS1, IDL1, LMS2 } R1 CSM[(MSS1, N3) (MB, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 0) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB, put(LMS3, reply-msg(MSS1, MB, I))]) C }
+    else
+        if ((Trigger: MB, N) == TR1) then if (cpTrigger(CP1) == (Trigger: MB, N)) then { meta-pro({ MSS1, IDL1, LMS2 } R1 CSM[(MSS1, N3) (MB, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 1) (OLD-csm: N3) NULL CM1 CM2 add(CP1, CL1)) meta-chan([ MSS2, MB, put(LMS3, reply-msg(MSS1, MB, I1))]) prop-cp(cpR(CP1), MR, MSS1, (Trigger: MB, N), CSM[(MSS1, N3) (MB, N4) LPC], (Weight: I), C) }    
+    	    	       	      	          else  {meta-pro({ MSS1, IDL1, LMS2 } R1 CSM[(MSS1, N3) (MB, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 1) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB, put(LMS3, reply-msg(MSS1, MB, I))]) C }  fi
+         else {meta-pro({ MSS1, IDL1, LMS2 } reset(R1) CSM[(MSS1, N3 + 1) (MB, N1) LPC] (Weight: I1) (Trigger: MB, N)  (Sent: 0) (CP-state: 1) (OLD-csm: (N3 + 1)) CP1 CM1 CM2 (CheckpointList: (Checkpoint: (N1 + 1) MSS1 CM1 CM2))) meta-chan([ MSS2, MB, put(LMS3, reply-msg(MSS1, MB, I1))]) prop-cp(cpR(CP1), MR, MSS1, (Trigger: MB, N), CSM[(MSS1, N3) (MB, N4) LPC], (Weight: I), C) } fi fi .
+
+ rl [recieveRequestStation] :
+    { meta-pro({ MSS1, IDL1, request-msg(MSS2, MSS1, MR, (MSS2, N1), (Trigger: MSS2, N), (MSS1, N2), I) | LMS2} R1 CSM[(MSS1, N3) (MSS2, N4) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 0) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, LMS3]) C }
+     =>  
+    if (N5 > N2) then { meta-pro({ MSS1, IDL1, LMS2 } R1 CSM[(MSS1, N3) (MSS2, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 0) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, put(LMS3, reply-msg(MSS1, MSS2, I))]) C }
+    else
+        if ((Trigger: MSS2, N) == TR1) then if (cpTrigger(CP1) == (Trigger: MSS2, N)) then { meta-pro({ MSS1, IDL1, LMS2 } R1 CSM[(MSS1, N3) (MSS2, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 1) (OLD-csm: N3) NULL CM1 CM2 add(CP1, CL1)) meta-chan([ MSS1, MSS2, put(LMS3, reply-msg(MSS1, MSS2, I1))]) prop-cp(cpR(CP1), MR, MSS1, (Trigger: MSS2, N), CSM[(MSS1, N3) (MSS2, N4) LPC], (Weight: I), C) }    
+    	    	       	      	          else  {meta-pro({ MSS1, IDL1, LMS2 } R1 CSM[(MSS1, N3) (MSS2, N1) LPC] (Weight: I1) TR1  (Sent: N6) (CP-state: 1) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, put(LMS3, reply-msg(MSS1, MSS2, I))]) C }  fi
+         else {meta-pro({ MSS1, IDL1, LMS2 } reset(R1) CSM[(MSS1, N3 + 1) (MSS2, N1) LPC] (Weight: I1) (Trigger: MSS2, N)  (Sent: 0) (CP-state: 1) (OLD-csm: (N3 + 1)) CP1 CM1 CM2 (CheckpointList: (Checkpoint: (N1 + 1) MSS1 CM1 CM2))) meta-chan([ MSS1, MSS2, put(LMS3, reply-msg(MSS1, MSS2, I1))]) prop-cp(cpR(CP1), MR, MSS1, (Trigger: MSS2, N), CSM[(MSS1, N3) (MSS2, N4) LPC], (Weight: I), C) } fi fi .
+	 
+*** Actions taken when a channel transfer a checkpoint request
+    crl [transResStation] :
+    {meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, request-msg(ID, MSS1, MR, (ID, N1), TR, (MSS1, N2), I) | LMS2 ])  C}
+    =>
+    {meta-pro({ MSS2, IDL1, put(LMS1, request-msg(ID, MSS1, MR, (ID, N1), TR, (MSS1, N2), I)) } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, LMS2 ])  C} if (MSS1 =/= MSS2) .
+    
+    rl [transResStation] :
+    {meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, MQ | LMS2 ])  C}
+    =>
+    {meta-pro({ MSS2, IDL1, put(LMS1, MQ) } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, LMS2 ])  C} .
+    
+     rl [transResMobile] :
+    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID, MB1, MQ | LMS3 ])  C}
+    =>
+    {meta-pro(< MB1, LCS1, MSS1, LMS1,  put(LMS1, MQ) > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID, MB1, LMS3 ])  C} .
+    
+
+*** Actions taken when a process receive a  computation message
+    rl [recieveMobileMSg] :
+    { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 >  R[(ID1, B) LP] CSM[(MB1, N1) (ID1, N2) LPC] (Weight: I1) TR1  (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, meta-msg((ID, MB1, D1) (ID1, N6) TR2) | LMS3]) C }  
+    =>
+    if (N6 <= N2) then { meta-pro(< MB1, LCS1, MSS1, LMS1, meta-msg((ID, MB1, D1) (ID1, N6) TR2) | LMS2 >  R[(ID1, 1) LP] CSM[(MB1, N1) (ID1, N2) LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, LMS3]) C }
+    else
+     if ((getCsmN(CSM[(MB1, N1) (ID1, N2) LPC], getTriggerId(TR2)) == getTriggerImun(TR2)) and (TR2 =/= NULL)) then  { meta-pro(< MB1, LCS1, MSS1, LMS1, meta-msg((ID, MB1, D1) (ID1, N6) TR2) | LMS2 >  R[(ID1, 1) LP] CSM[(MB1, N1) (ID1, N2) LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, LMS3]) C }
+     else  if (N3 == 1) and (TR1 =/= TR2) and (TR2 =/= NULL) then { meta-pro(< MB1, LCS1, MSS1, LMS1, meta-msg((ID, MB1, D1) (ID1, N6) TR2) | LMS2 >  reset(R[(ID1, 1) LP]) CSM[(MB1, N1) (ID1, N6) LPC] (Weight: I1) TR1 (Sent: 0) (CP-state: N4) (OLD-csm: N5) (CP: (Checkpoint: (N1 + 1) MB1 CM1 CM2) R[(ID1, B) LP] TR2 (Sent: N3)) CM1 CM2 CL1) meta-chan([ ID1, MB1, LMS3]) C }
+          else if (TR2 =/= NULL) and (N3 == 0) then { meta-pro(< MB1, LCS1, MSS1, LMS1, meta-msg((ID, MB1, D1) (ID1, N6) TR2) | LMS2 >  R[(ID1, 1) LP] CSM[(MB1, N1 + 1) (ID1, N2) LPC] (Weight: I1) TR2 (Sent: N3) (CP-state: 1) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, LMS3]) C } else { meta-pro(< MB1, LCS1, MSS1, LMS1, meta-msg((ID, MB1, D1) (ID1, N6) TR2) | LMS2 >  R[(ID1, 1) LP] CSM[(MB1, N1) (ID1, N6)  LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MB1, LMS3]) C } fi
+     fi fi fi .
+
+     rl [recieveStationMSg] :
+     { meta-pro({ MSS1, IDL1, LMS2 } R[(ID1, B) LP] CSM[(MSS1, N1) (ID1, N2) LPC] (Weight: I1) TR1  (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS3]) C }  
+    =>
+    if (N6 <= N2) then { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1) (ID1, N2) LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C }
+    else
+     if ((getCsmN(CSM[(MSS1, N1) (ID1, N2) LPC], getTriggerId(TR2)) == getTriggerImun(TR2)) and (TR2 =/= NULL)) then  { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1) (ID1, N2) LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C }
+     else  if (N3 == 1) and (TR1 =/= TR2) and (TR2 =/= NULL) then { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  reset(R[(ID1, 1) LP]) CSM[(MSS1, N1) (ID1, N6) LPC] (Weight: I1) TR1 (Sent: 0) (CP-state: N4) (OLD-csm: N5) (CP: (Checkpoint: (N1 + 1) MSS1 CM1 CM2) R[(ID1, B) LP] TR2 (Sent: N3)) CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C }
+          else if (TR2 =/= NULL) and (N3 == 0) then { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1 + 1) (ID1, N2) LPC] (Weight: I1) TR2 (Sent: N3) (CP-state: 1) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C } else { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1) (ID1, N6)  LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C } fi
+     fi fi fi .
+
+ rl [recieveStationMSg] :
+     { meta-pro({ MSS1, IDL1, LMS2 } R[(ID1, B) LP] CSM[(MSS1, N1) (ID1, N2) LPC] (Weight: I1) TR1  (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS3]) C }  
+    =>
+    if (N6 <= N2) then { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1) (ID1, N2) LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C }
+    else
+     if ((getCsmN(CSM[(MSS1, N1) (ID1, N2) LPC], getTriggerId(TR2)) == getTriggerImun(TR2)) and (TR2 =/= NULL)) then  { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1) (ID1, N2) LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C }
+     else  if (N3 == 1) and (TR1 =/= TR2) and (TR2 =/= NULL) then { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  reset(R[(ID1, 1) LP]) CSM[(MSS1, N1) (ID1, N6) LPC] (Weight: I1) TR1 (Sent: 0) (CP-state: N4) (OLD-csm: N5) (CP: (Checkpoint: (N1 + 1) MSS1 CM1 CM2) R[(ID1, B) LP] TR2 (Sent: N3)) CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C }
+          else if (TR2 =/= NULL) and (N3 == 0) then { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1 + 1) (ID1, N2) LPC] (Weight: I1) TR2 (Sent: N3) (CP-state: 1) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C } else { meta-pro({ MSS1, IDL1, meta-msg((ID, ID2, D1) (ID1, N6) TR2) | LMS2 }  R[(ID1, 1) LP] CSM[(MSS1, N1) (ID1, N6)  LPC] (Weight: I1) TR1 (Sent: N3) (CP-state: N4) (OLD-csm: N5) CP1 CM1 CM2 CL1) meta-chan([ ID1, MSS1, LMS3]) C } fi
+     fi fi fi .
+
+
+*** Actions taken when a intiator receive a  reply message
+
+   rl [processReplyMobile] :
+   { meta-pro(< MB1, LCS1, MSS1, LMS1, reply-msg(ID, MB1, I1) | LMS2 >  R1 CSM1 (Weight: I2) TR1  S1 (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) C }  
+    =>
+   if ((I1 + I2) < 1) then  { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 >  R1 CSM1 (Weight: (I2 + I1)) TR1  S1 (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) C }
+   else
+   { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 >  R1 CSM1 (Weight: (I2 + I1)) TR1  S1 (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) broadcast(MB1, TR1, C) } fi .
+   
+   rl [processReplyMSS1] :
+   { meta-pro({ MSS1, IDL1, reply-msg(ID, MSS1, I1) | LMS2 }   R1 CSM1 (Weight: I2) TR1  S1 (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) C }  
+    =>
+   if ((I1 + I2) < 1) then  { meta-pro({ MSS1, IDL1,  LMS2 }  R1 CSM1 (Weight: (I2 + I1)) TR1  S1 (CP-state: 1) OLD1 CP1 CM1 CM2 CL1) C }
+   else
+   { meta-pro({ MSS1, IDL1, LMS2 }  R1 CSM1 (Weight: (I2 + I1)) TR1  S1 (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) broadcast(MSS1, TR1, C) } fi .
+
+   rl [processReplyMSS2] :
+   { meta-pro({ MSS1, MB1 IDL1, reply-msg(ID, MB1, I1) | LMS1 }  R1 CSM1 W1 TR1  S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, LMS2 ]) C} 
+    =>
+   {meta-pro({ MSS1, MB1 IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, put(LMS2, reply-msg(ID, MB1, I1))]) C} .
+
+    rl [processReplyMSS3] :
+   { meta-pro({ MSS1, IDL1, reply-msg(ID, MB1, I1) | LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro({ MSS2, MB1 IDL2, reply-msg(ID, MB1, I1) | LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM2 CM3 CL2) meta-chan([ MSS1, MSS2,  LMS3 ]) C }  
+    =>
+   { meta-pro({ MSS1, IDL1, reply-msg(ID, MB1, I1) | LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro({ MSS2, MB1 IDL2, reply-msg(ID, MB1, I1) | LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM2 CM3 CL2) meta-chan([ MSS1, MSS2,  put(LMS3, reply-msg(ID, MB1, I1)) ]) } .
+   
+   *** Actions taken when a channel transfer a reply message
+    rl [transResStation] :
+    {meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, RL | LMS2 ])  C}
+    =>
+    {meta-pro({ MSS2, IDL1, put(LMS1, RL) } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, LMS2 ])  C} .
+    
+     rl [transResMobile] :
+    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID, MB1, RL | LMS3 ])  C}
+    =>
+    {meta-pro(< MB1, LCS1, MSS1, LMS1,  put(LMS1, RL) > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID, MB1, LMS3 ])  C} .
+
+    *** Actions taken when a intiator receive a  broadcast message
+   
+    rl [processBroadcastMobile] :
+    { meta-pro(< MB1, LCS1, MSS1, LMS1, broadcast-msg(ID1, MB1, (Trigger: ID, N)) | LMS2 >  R1 CSM[(ID, N1) LPC] W1 TR1  S1 (CP-state: N) OLD1 CP1 CM1 CM2 CL1) C }  
+    =>
+    if (cpTrigger(CP1) == (Trigger: ID, N)) then  { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 >  U(R1, cpR(CP1)) CSM[(ID, N) LPC] W1 TR1  Us(S1, cpSent(CP1)) (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) C }
+    else 
+    { meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 >  R1 CSM[(ID, N) LPC] W1 TR1  S1 (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) C } fi .
+
+    rl [processBroadcastMSS] :
+    { meta-pro({ MSS1, IDL1, broadcast-msg(ID, MSS1, (Trigger: ID, N)) | LMS2 }  R1 CSM[(ID, N1) LPC] W1 TR1  S1 (CP-state: N) OLD1 CP1 CM1 CM2 CL1) C }  
+    =>
+    if (cpTrigger(CP1) == (Trigger: ID, N)) then  { meta-pro({ MSS1, IDL1, LMS2 }  U(R1, cpR(CP1)) CSM[(ID, N) LPC] W1 TR1  Us(S1, cpSent(CP1)) (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) C }
+    else 
+    { meta-pro({ MSS1, IDL1, LMS2 }  R1 CSM[(ID, N) LPC] W1 TR1  S1 (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) C } fi .
+
+    rl [receiveBroadcastStation] :
+    {meta-pro({ MSS1, MB1 IDL1, broadcast-msg(ID, MB1, (Trigger: ID, N)) | LMS2 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, LMS3 ]) C}
+     =>
+    {meta-pro({ MSS1, IDL1,  LMS2 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MB1, put(LMS3,  broadcast-msg(ID, MB1, (Trigger: ID, N)))]) C} .
+
+    rl [receiveBroadcastStation] :
+    {meta-pro({ MSS1, IDL1, broadcast-msg(ID, MB1, (Trigger: ID, N)) | LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro({ MSS2, MB1 IDL2, broadcast-msg(ID, MB1, (Trigger: ID, N)) | LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MSS1, MSS2, LMS3 ]) C}
+     =>
+    {meta-pro({ MSS1, IDL1,  LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro({ MSS2, MB1 IDL2, broadcast-msg(ID, MB1, (Trigger: ID, N)) | LMS2 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MSS1, MSS2, put(LMS3,  broadcast-msg(ID, MB1, (Trigger: ID, N)))]) C} .
+
+    rl [transBroadStation] :
+    {meta-pro({ MSS2, IDL1, LMS1 } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, MGBS1 | LMS2 ])  C}
+    =>
+    {meta-pro({ MSS2, IDL1, put(LMS1, MGBS1) } R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ MSS1, MSS2, LMS2 ])  C} .   
+     
+     rl [transBroadMobile] :
+    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID, MB1, MGBS1 | LMS3 ])  C}
+    =>
+    {meta-pro(< MB1, LCS1, MSS1, LMS1,  put(LMS1, MGBS1) > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-chan([ ID, MB1, LMS3 ])  C} .
+
+
+*** Disconnect 
+
+***(    crl [disMobile] :
+***    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 >  R1 CSM[(MB1, N) LPC] W1 TR1 S1 (CP-state: 0) OLD1 CP1 CM1 CM2 CL1) meta-chan([ MB1, MSS1, LMS3 ]) meta-chan([ MSS1, MB1, LMS4 ]) C}
+***    =>
+***    {meta-pro(< MB1, LCS1, disC, LMS1, LMS2 >  R1 CSM[(MB1, N) LPC] W1 TR1 S1 (CP-state: 0) OLD1 (CP: (Checkpoint: N MB1 CM1 CM2) R1 TR1 S1) CM1 CM2 CL1) C} if not (MSS1 == disC) and (LMS2 == nil)  .
+
+***    rl [reConMobile] :
+***    {meta-pro(< MB1, LCS1, disC, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1)  meta-pro({ MSS1, IDL1, LMS3 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) C}
+***      =>
+***    {meta-pro(< MB1, LCS1, MSS1, LMS1, LMS2 > R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1)  meta-pro({ MSS1, MB1 IDL1, LMS3 } R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) meta-chan([ MB1, MSS1, nil ]) meta-chan([ MSS1, MB1, nil ]) delID(C, MB1)} .
+
+***    rl [sendStationToNone2] :
+***    {meta-pro({ MSS1, MB2 IDL1, request-msg(ID1, MB2, MR, PA1, TR, PA2, I) | LMS1 }  R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1)  meta-pro(< MB2, LCS2, disC, LMS2, LMS3 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 CL2) C} 
+***    =>
+***    {meta-pro({ MSS1, MB2 IDL1,  LMS1}  R1 CSM1 W1 TR1 S1 CS1 OLD1 CP1 CM1 CM2 CL1) meta-pro(< MB2, LCS2, disC, LMS2, LMS3 > R2 CSM2 W2 TR2 S2 CS2 OLD2 CP2 CM3 CM4 add(CP2, CL2)) C} .)
+    
+
+ endm
+ 
+
+mod CP-TRANS is
+
+    pr META-LEVEL .
+    pr CONFIG .
+    pr META-CONFIG .
+    var M : Module .
+    vars L F : Qid .
+    var AtS : AttrSet .
+    vars T T' T1 T2 T3 : Term .
+    vars TL TL1 TL2 TL1' TL2' : TermList .
+    var Cd : Condition .
+    var H : Header .
+    vars IL IL' : ImportList .
+    var SS : SortSet .
+    var SSDS : SubsortDeclSet .
+    var OPDS : OpDeclSet .
+    var MAS : MembAxSet .
+    var EqS : EquationSet .
+    vars RlS RlS' : RuleSet .
+    var V : Variable .
+    var C : Constant .
+    *** vars P Q : Pid .
+    *** var PS PS1 : PState .
+    *** var BC : Config .
+    *** vars OC OC1 : OCom .
+    *** eq OC OC = OC .
+
+    op checkType : Term -> Qid .
+    op setRls : Module RuleSet -> Module .
+    eq setRls(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, RlS') = mod H is IL sorts SS . SSDS OPDS MAS EqS RlS' endm .
+    eq setRls(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, RlS) = if RlS == none 
+    then fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm 
+    else mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm 
+    fi .
+
+    op addImports : Module ImportList -> Module .
+    eq addImports(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, IL') = mod H is IL IL' sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq addImports(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, IL') = fmod H is IL IL' sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op cl-Trans : Qid -> Module .
+    op cl-Trans : Module -> Module .
+    op cl-Trans : Module RuleSet -> RuleSet .
+
+    eq cl-Trans(H) = cl-Trans(upModule(H, false)) .
+    eq cl-Trans(M) = setRls(M, cl-Trans(M, getRls(M))) .
+    eq cl-Trans(M, RlS)  = RlS .
+
+    op GetC : Term -> Term .
+
+    eq recTrans(rl T => T' [AtS] .) = (rl '`{_`}['__['C:Meta-conf-com,'meta-chan`(_`)['`[_`,_`,_`]['MB1:Mid,
+    'MSS1:Mssid,'LMS5:Meta-messageList]],'meta-pro`(____________`)[
+    '<_`,_`,_`,_`,_>['MB1:Mid,'__['D1:Data,'LCS1:LState],'MSS1:Mssid,
+    'LMS1:Meta-messageList,'LMS2:Meta-messageList],'R1:Arraybit,'CSM`[_`]['__[
+    'LPC:ListPairCheckNu,'_`,_['MB1:Mid,'N1:Nat]]],'W1:Weight,'TR1:Trigger,
+    'Sent:_['N2:Nat],'CP-state:_['0.Zero],'OLD1:OLD-csm,'CP1:Cp,
+    'CM1:CheckMsgSet,'CM2:CheckMsgSet,'CL1:CheckpointS],
+    'meta-pro`(____________`)['<_`,_`,_`,_`,_>['MB2:Mid,'LCS2:LState,
+    'MSS2:Mssid,'LMS3:Meta-messageList,'LMS4:Meta-messageList],'R2:Arraybit,
+    'CSM2:Csm,'W2:Weight,'TR2:Trigger,'S2:Sent,'CS2:CP-state,'OLD2:OLD-csm,
+    'CP2:Cp,'CM3:CheckMsgSet,'CM4:CheckMsgSet,'CL2:CheckpointS]]] => '`{_`}['__['C:Meta-conf-com,'meta-chan`(_`)['`[_`,_`,_`]['MB1:Mid,
+    'MSS1:Mssid,'put['LMS5:Meta-messageList,'meta-msg`(___`)['_`,_`,_['MB1:Mid,
+    'MB2:Mid,'D1:Data],'_`,_['MB1:Mid,'N1:Nat],'NULL.Trigger]]]],
+    'meta-pro`(____________`)['<_`,_`,_`,_`,_>['MB1:Mid,'LCS1:LState,
+    'MSS1:Mssid,'LMS1:Meta-messageList,'LMS2:Meta-messageList],'R1:Arraybit,
+    'CSM`[_`]['__['LPC:ListPairCheckNu,'_`,_['MB1:Mid,'N1:Nat]]],'W1:Weight,
+    'TR1:Trigger,'Sent:_['s_['0.Zero]],'CP-state:_['0.Zero],'OLD1:OLD-csm,
+    'CP1:Cp,'__['CM1:CheckMsgSet,'_`,_`,_['MB1:Mid,'MSS1:Mssid,'_`,_`,_[
+    'MB1:Mid,'MB2:Mid,'D1:Data]]],'CM2:CheckMsgSet,'CL1:CheckpointS],
+    'meta-pro`(____________`)['<_`,_`,_`,_`,_>['MB2:Mid,'LCS2:LState,
+    'MSS2:Mssid,'LMS3:Meta-messageList,'LMS4:Meta-messageList],'R2:Arraybit,
+    'CSM2:Csm,'W2:Weight,'TR2:Trigger,'S2:Sent,'CS2:CP-state,'OLD2:OLD-csm,
+    'CP2:Cp,'CM3:CheckMsgSet,'CM4:CheckMsgSet,'CL2:CheckpointS]]] [AtS] . ) if checkKind(T, T') = 'send .
+
+     eq cl-Trans((rl T => T' [AtS] .) = '`{_`}['__[GetC(T),'meta-chan`(_`)['`[_`,_`,_`]['ID1:Id,
+    'MSS1:Mssid,'_|_['meta-msg`(___`)['_`,_`,_['ID:Id,'ID2:Id,'D1:Data],'_`,_[
+    'ID1:Id,'N6:Nat],'TR2:Trigger],'LMS3:Meta-messageList]]],
+    'meta-pro`(____________`)['`{_`,_`,_`}['MSS1:Mssid,'IDL1:MidSet,
+    'LMS2:Meta-messageList],'R`[_`]['__['LP:ListPair,'_`,_['ID1:Id,'B:Bit]]],
+    'CSM`[_`]['__['LPC:ListPairCheckNu,'_`,_['ID1:Id,'N2:Nat],'_`,_[
+    'MSS1:Mssid,'N1:Nat]]],'Weight:_['I1:Rat],'TR1:Trigger,'Sent:_['N3:Nat],
+    'CP-state:_['N4:Nat],'OLD-csm:_['N5:Nat],'CP1:Cp,'CM1:CheckMsgSet,
+    'CM2:CheckMsgSet,'CL1:CheckpointS]]] => '`{_`}['__[GetC(T),'meta-chan`(_`)['`[_`,_`,_`]['ID1:Id,
+    'MSS1:Mssid,'_|_['meta-msg`(___`)['_`,_`,_['ID:Id,'ID2:Id,'D1:Data],'_`,_[
+    'ID1:Id,'N6:Nat],'TR2:Trigger],'LMS3:Meta-messageList]]],
+    'meta-pro`(____________`)['`{_`,_`,_`}['MSS1:Mssid,'IDL1:MidSet,
+    'LMS2:Meta-messageList],'R`[_`]['__['LP:ListPair,'_`,_['ID1:Id,'B:Bit]]],
+    'CSM`[_`]['__['LPC:ListPairCheckNu,'_`,_['ID1:Id,'N2:Nat],'_`,_[
+    'MSS1:Mssid,'N1:Nat]]],'Weight:_['I1:Rat],'TR1:Trigger,'Sent:_['N3:Nat],
+    'CP-state:_['N4:Nat],'OLD-csm:_['N5:Nat],'CP1:Cp,'CM1:CheckMsgSet,
+    'CM2:CheckMsgSet,'CL1:CheckpointS]]] if checkKind(T, T') = 'receive .
+
+endm
+
+*** Specification of function CL
+mod CP-ALGORITHM is
+
+    pr CP-TRANS .
+    pr INIT .
+
+    var M : Module .
+    vars L F : Qid .
+    var AtS : AttrSet .
+    vars T T' T1 T2 T3 : Term .
+    vars TL TL1 TL2 TL1' TL2' : TermList .
+    var Cd : Condition .
+    vars H H' : Header .
+    vars IL IL' : ImportList .
+    var I : Import .
+    vars SS SS' : SortSet .
+    vars SSDS SSDS' : SubsortDeclSet .
+    vars OPDS OPDS' : OpDeclSet .
+    var MAS : MembAxSet .
+    vars EqS EqS'  : EquationSet .
+    vars RlS RlS' : RuleSet .
+    var V : Variable .
+    var C : Constant .
+    var P : Type .
+    var PL : TypeSet .
+    vars TpL TpL' : TypeList .
+    vars Tp Tp' Tp'' Tp''' : Type .
+
+    sort  Syn .
+
+    op setSort : Module SortSet -> Module .
+    eq setSort(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, SS') = mod H is IL sorts SS ; SS' . SSDS OPDS MAS EqS RlS endm .
+    eq setSort(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, SS') = fmod H is IL sorts SS SS' . SSDS OPDS MAS EqS endfm .
+
+    op setSubSort : Module SubsortDeclSet -> Module .
+    eq setSubSort(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, SSDS') = mod H is IL sorts SS . SSDS SSDS' OPDS MAS EqS RlS endm .
+    eq setSubSort(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, SSDS') = fmod H is IL sorts SS . SSDS SSDS' OPDS MAS EqS endfm .
+    
+    op setEqSet : Module EquationSet -> Module .
+    eq setEqSet(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, EqS') = mod H is IL sorts SS . SSDS OPDS MAS EqS' RlS endm .
+    eq setEqSet(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, EqS') = fmod H is IL sorts SS . SSDS OPDS MAS EqS' endfm .
+
+    op setOpDecSet : Module OpDeclSet -> Module .
+    eq setOpDecSet(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, OPDS') = mod H is IL sorts SS . SSDS OPDS' MAS EqS RlS endm .
+    eq setOpDecSet(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, OPDS') = fmod H is IL sorts SS . SSDS OPDS' MAS EqS endfm .
+
+    op delImportList : ImportList -> ImportList .
+    eq delImportList(I IL) = if (I == (protecting 'CONFIG .)) or (I == (extending 'CONFIG .)) then delImportList(IL) else I delImportList(IL) fi .
+    eq delImportList(nil) = nil .
+    
+    op delImports : Module -> Module .
+    eq delImports(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm) = mod H is delImportList(IL) sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq delImports(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm) = fmod H is delImportList(IL) sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op chaneName : Module Qid -> Module .
+    eq chaneName(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, H') = mod qid(string(H) + "-" + string(H')) is IL sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq chaneName(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, H') = fmod qid(string(H) + "-" + string(H')) is IL sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op getSort : OpDeclSet -> TypeSet .
+    eq getSort(none) = nil .
+    eq getSort(op L : PL -> P [AtS] .) = P .
+
+    op changeOpe : OpDeclSet -> OpDeclSet .
+    eq changeOpe(op F : TpL -> Tp [AtS] . OPDS) = if (Tp == 'Config) then (op F : TpL -> 'Meta-config [AtS] .) changeOpe(OPDS) else (op F : TpL -> Tp [AtS] .) changeOpe(OPDS) fi .
+    eq changeOpe(none) = none .
+
+    op reName : Constant -> Constant .
+    eq reName(C) = qid(string(getName(C)) + "." + "Meta-config") .
+
+op changeSort : TermList -> TermList .
+    eq changeSort(F[TL]) = F[changeSort(TL)] .
+    eq changeSort((F[TL], TL1)) = (F[changeSort(TL)], changeSort(TL1)) .
+  
+    ceq changeSort((V, TL)) = (qid(string(getName(V)) + ":" + "Meta-config"), changeSort(TL)) if (getType(V) == 'Config) .
+    ceq changeSort((V, TL)) = (qid(string(getName(V)) + ":" + "MMsgQueue"), changeSort(TL)) if (getType(V) == 'MsgQueue) .
+    ceq changeSort((V, TL)) = (V, changeSort(TL))  if not ((getType(V) == 'Config) or (getType(V) == 'MsgQueue)) .
+    
+    ceq changeSort((C, TL)) = (qid(string(getName(C)) + "." + "Meta-config"), changeSort(TL)) if (getType(C) == 'Config) .
+    ceq changeSort((C, TL)) = (qid(string(getName(C)) + "." + "MMsgQueue"), changeSort(TL)) if (getType(C) == 'MsgQueue) .
+    ceq changeSort((C, TL)) = (C, changeSort(TL)) if not ((getType(C) == 'Config) or (getType(C) == 'MsgQueue)) .
+
+    eq changeSort(empty) = empty .
+    op cp : Qid -> Module .
+    op cp : Module -> Module .
+
+    op t-State : Module -> Module .
+    op setSyn : Module Syn -> Module .
+    op getSyn : Module -> Syn .
+    op modifySyn : Syn -> Syn .
+    eq t-State(M) = setSyn(M, modifySyn(getSyn(M))) .
+
+    op t-Init : Module -> Module .
+    op t-Init : Module OpDeclSet -> OpDeclSet .
+    op t-Init : Module EquationSet -> EquationSet .
+
+    op t-Trans : Module -> Module . 
+    op t-Trans : Module RuleSet -> RuleSet .
+    op setRls : Module RuleSet -> RuleSet .
+    *** op getRls : Module -> RuleSet .
+    eq t-Trans(M) = setRls(M, t-Trans(M, getRls(M))).   
+
+    eq t-Init(M) = setEqSet(M, t-Init(M, getEqs(M))).
+    eq t-Init(M, eq T = T' [AtS] . EqS) = if (getType(T) == 'Config) then  (eq changeSort(T) = upTerm(init(downTerm(T', {emp}))) [AtS] .) t-Init(M, EqS) 
+                                          else (eq T = T' [AtS] .) t-Init(M, EqS) fi .
+
+
+    eq cp(H) = cp(upModule(H, false)) .
+    *** eq CL(M) = setSort(setSort(setSubSort(chaneName(delImports(setOpDecSet(setRls(cl-Initial(addImports(M, (including 'CHECKPOINT-ALGORITHM .))), cl-Trans(M, getRls(M))), changeOpe(getOps(M)))), 'CHECKPOINT-ALGORITHM), (subsort 'MsgQueue < 'MMsgQueue . subsort 'Config < 'BConfig .)), 'MsgQueue), 'Config) .
+    
+    eq cp(M) = setOpDecSet(delImports(cl-Initial(addImports(M, (including 'CHECKPOINT-ALGORITHM .)))), changeOpe(getOps(M))) .
+
+    *** eq CL(M) = chaneName(delImports(setOpDecSet(setRls(cl-Initial(addImports(M, (including 'CHECKPOINT-ALGORITHM .))), cl-Trans(M, getRls(M))), changeOpe(getOps(M)))), 'CHECKPOINT-ALGORITHM) .
+
+    op cl-Initial : Module -> Module .
+    op cl-Initial : Module EquationSet -> EquationSet .
+
+    eq cl-Initial(M) = setEqSet(M, cl-Initial(M, getEqs(M)))  .
+    eq cl-Initial(M, eq T = T' [AtS] . EqS) = if (getType(T) == 'Config) then (eq reName(T) = upTerm(init(downTerm(T', {emp}))) [AtS] . ) cl-Initial(M, EqS) else (eq T = T' [AtS] .) cl-Initial(M, EqS) fi .
+
+    eq cl-Initial(M, none) = none .
+endm
+
+
+
+mod PREDICATE is
+
+    pr META-CONFIG .
+
+    vars C C1 : Meta-conf-com .
+    vars MCH MCH1 MCH2 : Meta-channel .
+    vars D1 D2 : Data .
+    vars MB MB1 MB2 : Mid .
+    vars MSS1 MSS2 MSS3 : Mssid .
+    vars LCS1 LCS2 LCS3 : LState .
+    vars M1 : Meta-msg .
+    vars LMS1 LMS2 LMS3 LMS4 LMS5 : Meta-messageList .
+    vars IDL1 IDL2 : MidSet .
+    vars R R1 R2 : Arraybit .
+    vars CSM CSM1 CSM2 : Csm .
+    vars W1 W2 : Weight .
+    vars TR TR1 TR2 : Trigger .
+    vars S S1 S2 : Sent .
+    vars CS CS1 CS2 : CP-state .
+    vars OLD1 OLD2 : OLD-csm .
+    vars CP1 CP2 : Cp .
+    vars PA PA1 PA2 : PairCheckNu .
+    vars N N1 N2 N3 N4 N5 N6 N7 N8 : Nat .
+    var LPC :  ListPairCheckNu .
+    var M : Meta-mobile .
+    var CN : Meta-channel .
+    var LP LP1 LP2 : ListPair .
+    vars ID ID1 ID2 ID3 : Id .
+    vars B B1 B2 B3 : Bit .
+    vars CM CM1 CM2 CM3 CM4 : CheckMsgSet .
+    vars MR MR1 MR2 : Mr .
+    vars I I1 I2 : Rat .
+    vars ST ST1 ST2 : Meta-state .
+    vars CL CL1 CL2 : CheckpointS .
+    vars CPK CPK1 CPK2 : Checkpoint .
+    vars CPL CPL1 CPL2 : CheckpointList .
+    vars MS MS1 MS2 : CheckMsg .
+    
+    
+    op checkTer : Meta-config -> Bool .
+    op checkTer1 : Meta-config -> Bool .
+    
+    eq checkTer({ meta-pro(ST R CSM W1 TR1  S (CP-state: N) OLD1 CP1 CM1 CM2 CL1) C}) =  if (N == 1) then false else checkTer({ C }) fi .
+    eq checkTer({meta-chan(MCH) C}) = checkTer({C}) .
+    eq checkTer({empM}) = true .
+
+    op getCheckpoits :  Meta-config -> CheckpointList .
+    eq getCheckpoits({ meta-pro(ST R CSM W1 TR1  S CS OLD1 CP1 CM1 CM2 (CheckpointList: CPK)) C}) = CPK getCheckpoits({C}) .
+    eq getCheckpoits({meta-chan(MCH) C}) = getCheckpoits({C}) .
+    eq getCheckpoits({empM}) = empCklist .
+
+    op checkCheckpoits :  Meta-config -> CheckpointList .
+    eq checkCheckpoits({ meta-pro(ST R CSM W1 TR1  S CS OLD1 CP1 CM1 CM2 (CheckpointList: CPK)) C}) = CPK checkCheckpoits({C}) .
+    eq checkCheckpoits({meta-chan(MCH) C}) = checkCheckpoits({C}) .
+    eq checkCheckpoits({empM}) = empCklist .
+
+    op getSendingList : CheckpointList -> CheckMsgSet .
+    op getReceivingList : CheckpointList -> CheckMsgSet .
+
+    eq getSendingList((Checkpoint: N ID CM1 CM2) CPL) = CM1  getSendingList(CPL) .
+    eq getSendingList(empCklist) = nullCheck .
+    eq getReceivingList((Checkpoint: N ID CM1 CM2) CPL) = CM2  getReceivingList(CPL) .
+    eq getReceivingList(empCklist) = nullCheck .
+
+    op findCheckpoint : CheckMsg CheckMsgSet -> Bool .
+    eq findCheckpoint(MS, MS1 CM) = if MS == MS1 then true else findCheckpoint(MS, CM) fi .
+    eq findCheckpoint(MS, nullCheck) = false .
+
+    op checkConsMgs : CheckMsgSet CheckMsgSet -> Bool .
+    eq checkConsMgs( MS1 CM1, CM2) =  findCheckpoint(MS1, CM2) and checkConsMgs(CM1, CM2) .
+    eq checkConsMgs( nullCheck, CM2) = true .
+
+    op ConsCheckpoint : Meta-config -> Bool .
+    eq ConsCheckpoint({C}) = checkConsMgs(getSendingList(getCheckpoits({C})), getReceivingList(getCheckpoits({C}))) .
+
+    *** op modelCheck : Meta-config -> Bool .
+    *** eq modelCheck({C}) = checkTerm({C}) . *** and ConsCheckpoint({C}) .
+    *** op condition : Meta-config -> Bool .
+    *** eq condition({C}) = checkTer({C}) and ConsCheckpoint({C}) .
+
+    eq checkTer1({C}) = checkTer({C}) and (checkCheckpoits({C}) =/= empCklist) and not ConsCheckpoint({C}) .
+    *** eq checkTer1({C}) = (checkCheckpoits({C}) =/= empCklist) .
+   
+
+
+endm .
+
+fmod COUNTER is
+pr META-CONFIG .
+pr CONFIG .
+   sort Counter-example .
+   sort CounterSet .
+   subsort Counter-example < CounterSet .
+   op (_,_) : Config Meta-config -> Counter-example [ctor] .
+   op empty : ->  CounterSet .
+   op _ _ : CounterSet CounterSet -> CounterSet [ctor assoc comm id: empty] .
+endfm
+
+
+mod EXPERIMENT is
+pr CP-ALGORITHM .
+pr PREDICATE .
+pr MOBILE-SYSTEM .
+pr COUNTER .
+   vars C C1 : Meta-conf-com .
+   vars T : Term .
+   var M : Module .
+   vars N1 N2 : Nat .
+   var CFL : ConfigSet .
+   vars CF : Config .
+
+   *** sort Counter-example .
+   *** sort CounterSet .
+   *** subsort Counter-example < CounterSet .
+   *** op (_,_) : Config Config -> Counter-example [ctor] .
+   *** op empty : ->  CounterSet .
+   *** op _ _ : CounterSet CounterSet -> LState [ctor assoc comm id: empty] .
+
+   op condTer : Term -> Term .
+   op unCondConst : Term -> Term .
+   eq condTer(T) = if checkTer1(downTerm(T, {empM})) == true then 'true.Bool else 'false.Bool fi .
+   eq unCondConst(T) = if ConsCheckpoint(downTerm(T, {empM})) == false then 'true.Bool else 'false.Bool fi .
+    
+    op listState : -> Meta-config .
+    op listCheck : -> Bool .
+    eq listState = downTerm(getTerm(metaSearch(cp('MOBILE-SYSTEM), 'initial1.Meta-config, '`{_`}['C:Meta-conf-com], condTer('`{_`}['C:Meta-conf-com]) = 'true.Bool /\ unCondConst('`{_`}['C:Meta-conf-com]) = 'true.Bool , '+, unbounded, 0)), {empM}) .
+    eq listCheck = if listState == {empM} then true else false fi .
+
+    op listState1 : Term -> Meta-config .
+    op listCheck1 : Term -> Bool .
+    eq listState1(T) = downTerm(getTerm(metaSearch(cp('MOBILE-SYSTEM), T, '`{_`}['C:Meta-conf-com], condTer('`{_`}['C:Meta-conf-com]) = 'false.Bool /\ unCondConst('`{_`}['C:Meta-conf-com]) = 'false.Bool , '*, unbounded, 0)), {empM}) .
+
+    *** eq listState = downTerm(getTerm(metaSearch(cp('MOBILE-SYSTEM), 'initial1.Meta-config, '`{_`}['C:Meta-conf-com], condTer('`{_`}['C:Meta-conf-com]) = 'true.Bool, '*, unbounded, 0)), {empM}) .
+    eq listCheck1(T) = if listState1(T) == {empM} then true else false fi .
+    
+    op checkAll : Nat Nat -> Bool .
+    op checkAllList : ConfigSet -> Bool .
+    eq checkAll(N1, N2) = checkAllList(geneInitial(N1, N2)) .
+    eq checkAllList(CF, CFL) = listCheck1(upTerm(init(CF))) and checkAllList(CFL) .
+    eq checkAllList(emp) = true .
+
+    op checkAll1 : Nat Nat -> CounterSet .
+    op checkAllList1 : ConfigSet -> CounterSet .
+    eq checkAll1(N1, N2) = checkAllList1(geneInitial(N1, N2)) .
+    eq checkAllList1(CF, CFL) = if (listState1(upTerm(init(CF))) == {empM}) then ({emp}, {empM}) checkAllList1(CFL) else (CF, listState1(upTerm(init(CF)))) checkAllList1(CFL
+    ) fi .
+    eq checkAllList1(emp) = empty .
+    
+endm .
+
