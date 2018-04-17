@@ -1,0 +1,946 @@
+***
+*** Specification of function CL that takes a state machine M_UDS formalizing 
+*** an underlying distributed system (UDS) and return another state machine
+*** M_CLDSA formalizing the UDS superimposed by Chandy-Lamport Distributed
+*** Snapshot Algorithm (CLDSA) .
+***
+
+
+************************* Basic Data Used ***********************************
+
+
+*** Theory for Process Identifiers
+fmod PID is
+  
+	*** The sort for process identifiers
+	sort Pid .
+endfm
+
+*** Theory for Process States 
+fmod PSTATE is
+
+     	*** The sort for process states
+	sort PState .	
+endfm
+
+*** Theory for Message Identifiers
+fmod MESSAGE is
+  
+	*** The sort for message identifiers
+	sort Msg .
+endfm
+
+*** Module for Markers
+fmod MARKER is
+
+        sort Marker .
+        op marker : -> Marker [ctor] .
+endfm
+
+*** Module for Message Identifiers and Markers
+fmod MUTIL-MESSAGE is
+
+        ex MESSAGE .
+	ex MARKER .
+	sort MMsg .
+	subsorts Msg Marker < MMsg .
+endfm
+
+*** Module for Channels
+fmod CHANNEL{X :: TRIV} is
+
+        sort MsgQueue .
+	op empChan : -> MsgQueue [ctor] .
+	op _|_ : X$Elt  MsgQueue -> MsgQueue [ctor] .
+
+        *** Function enq is a standard function for queues, taking a queue q and
+	*** an element e and putting e into q at bottom.
+
+ 	op enq : MsgQueue X$Elt ->  MsgQueue .
+
+	vars M1 M2 : X$Elt .
+ 	var MS : MsgQueue .
+ 	eq enq(empChan, M2) = M2 | empChan .
+	eq enq(M1 | MS, M2) = M1 | enq(MS, M2) .
+endfm
+
+*** Module for Channels of a UDS
+view Channels from TRIV to MESSAGE is
+        sort Elt to Msg .
+endv
+
+fmod CHANNEL-UDS is
+        ex CHANNEL{Channels} .	
+endfm
+
+
+*** Module for Channels of a CLDSA
+view mutilChannels from TRIV to MUTIL-MESSAGE is
+        sort Elt to MMsg .
+endv
+
+fmod CHANNEL-CLDSA is
+        ex (CHANNEL * (sort MsgQueue to MMsgQueue)) {mutilChannels} .
+endfm
+
+********************** The modules for a UDS *************************************
+
+*** Module for  Observable Components of a UDS
+fmod OBSERVABLE-COMPONENT-UDS is
+        pr NAT .
+        ex PID .
+        ex PSTATE .
+        ex CHANNEL-UDS .
+       
+        *** The sort for Observable Components of a UDS
+	sort OCom .
+	op p-state[_] :_ : Pid PState -> OCom [ctor] .
+	op c-state[_, _, _] :_ : Pid Pid Nat MsgQueue -> OCom [ctor] .
+endfm
+
+*** Module for  a UDS
+fmod UDS is
+	ex  OBSERVABLE-COMPONENT-UDS .
+
+	*** The sort for Process and Channel states
+	sort Config .
+	subsort OCom < Config .
+	op empConfig : -> Config [ctor] .
+	op _ _ : Config Config -> Config [ctor assoc comm id: empConfig] .       
+endfm
+
+********************** The modules for  the UDS superimposed by CLDSA **************
+
+*** Module for the progress of a process indicating that a process has not yet
+*** started, has started, or completed the algorithm.
+fmod PROGRESS is
+        sort Prog .
+        ops notYet started completed : -> Prog [ctor] .
+endfm
+
+*** Module for Control Obseverable Compoments
+fmod CONTROL-OBSERVABLE-COMPOMENT is
+     	pr NAT .
+	ex PID .
+     	ex PROGRESS .
+	
+        sort CtlOCom .
+
+	op (cnt :_) : Nat -> CtlOCom [ctor] .
+ 	op (#ms[_] :_) : Pid Nat -> CtlOCom [ctor] .
+  	op (done[_,_,_] :_) : Pid Pid Nat Bool -> CtlOCom [ctor] .
+  	op (prog[_] :_) : Pid Prog -> CtlOCom [ctor] .
+endfm
+
+*** Module for Control Information
+fmod CONTROL is
+        ex CONTROL-OBSERVABLE-COMPOMENT .
+	
+     	sort CtlConfig .
+     	subsort CtlOCom < CtlConfig .
+	
+	op empCtlConfig : -> CtlConfig [ctor] .
+	op _ _ : CtlConfig CtlConfig -> CtlConfig [ctor assoc comm id: empCtlConfig] .
+
+endfm
+
+*** Module for  observable components of the UDS subperimposed by CLDSA
+fmod OBSERVABLE-COMPONENT-CLDSA is
+        pr NAT .
+        ex PID .
+        ex PSTATE .
+        ex CHANNEL-CLDSA .
+       
+        *** The sort for Observable Components
+	sort BOCom .
+	
+	op p-state[_] :_ : Pid PState -> BOCom [ctor] .
+	op c-state[_, _, _] :_ : Pid Pid Nat MMsgQueue -> BOCom [ctor] .
+endfm
+
+*** Module for the Configuration Compoment
+fmod CONFIGURATION-COMPOMENT is
+
+        ex CONTROL .
+	ex OBSERVABLE-COMPONENT-CLDSA .
+
+	*** The sort for the states of process and channel states
+	sorts BConfig MBCom .
+	subsort BOCom < BConfig .
+	
+	op empBConfig : -> BConfig [ctor] .
+	op _ _ : BConfig BConfig -> BConfig [ctor assoc comm id: empBConfig] .
+
+	ops base-state start-state snapshot finish-state : BConfig -> MBCom [ctor] .
+	op control : CtlConfig -> MBCom .
+endfm
+
+*** Module for the UDS subperimposed by CLDSA
+mod CLDSA is    
+	ex CONFIGURATION-COMPOMENT .
+	
+     	sorts MBConfig .
+	subsort MBCom < MBConfig .
+	
+        op _ _ : MBConfig MBConfig -> MBConfig [ctor assoc comm].
+
+	vars P P1 Q Q1 : Pid .
+	var PS : PState .
+	vars N NzN NzN' : Nat .
+	vars CS MS : MMsgQueue .
+	var BC : BConfig .
+	vars SC SSC FC FC1 : BConfig .
+	vars M M1 M2 : MMsg .
+	var C : MMsgQueue .
+	var CC : CtlConfig .
+	var OC : BOCom .
+ 	eq OC OC = OC .
+
+        op _!=_ : BConfig BConfig -> Bool .
+        eq FC != FC1 = not (FC == FC1) .
+
+        op bcast : BConfig Pid MMsg -> BConfig .
+	eq bcast(empBConfig, P, marker) = empBConfig .
+	eq bcast((c-state[Q, P, N] : C) BC, P, marker) = (c-state[P, Q, N]: enq(C, marker)) bcast(BC, P, marker) .
+	eq bcast(OC BC, P, M) = OC bcast(BC, P, marker) [owise] .
+
+	op inchans : BConfig Pid -> BConfig .
+	eq inchans(empBConfig, P) = empBConfig .
+  	eq inchans((c-state[Q, P, N] : C) BC, P) = (c-state[Q, P, N] : empChan) inchans(BC, P) .
+ 	eq inchans(OC BC, P) = inchans(BC, P) [owise] .
+
+	*** Transtion Rules for the CLDSA part for the UDS subperimposed by CLDSA
+
+	*** Record of Process States
+	*** case-1: is further split into three sub-cases:
+ 	*** case-1-1: The underlying system only consists of the process.
+ 
+	rl [start&cnt=1&#ms=0] :
+        base-state((p-state[P] : PS))
+        start-state(empBConfig)
+        snapshot(empBConfig)
+        finish-state(empBConfig)
+        control((cnt : 1) (prog[P] : notYet) (#ms[P] : 0) CC)
+        =>
+        base-state((p-state[P] : PS))
+        start-state((p-state[P] : PS))
+        snapshot((p-state[P] : PS))
+        finish-state((p-state[P] : PS))
+        control((cnt : 0) (prog[P] : completed) (#ms[P] : 0) CC) .
+	
+	*** case-1-2: The system consists of more than one process,
+        *** and the process does not have any incoming channels.
+        crl [start&cnt>1&#ms=0] :
+        base-state((p-state[P] : PS) BC)
+        start-state(empBConfig)
+        snapshot(empBConfig)
+        control((cnt : NzN') (prog[P] : notYet) (#ms[P] : 0) CC)
+        =>
+        base-state((p-state[P] : PS) bcast(BC,P,marker))
+        start-state((p-state[P] : PS) BC)
+        snapshot((p-state[P] : PS))
+        control((cnt : sd(NzN',1)) (prog[P] : completed) (#ms[P] : 0) CC)
+        if NzN' > 1 .
+
+
+	rl [start&cnt>1&#ms>0] :
+  	base-state((p-state[P] : PS) BC)
+    	start-state(empBConfig)
+    	snapshot(empBConfig)
+    	control((prog[P] : notYet) (#ms[P] : NzN') CC)
+    	=>
+    	base-state((p-state[P] : PS) bcast(BC,P,marker))
+    	start-state((p-state[P] : PS) BC)
+    	snapshot((p-state[P] : PS) inchans(BC,P))
+   	control((prog[P] : started) (#ms[P] : NzN') CC) .
+
+	 crl [record&cnt=1&#ms=0] :
+    	 base-state((p-state[P] : PS))
+    	 start-state(SC)
+    	 snapshot(SSC)
+   	 finish-state(empBConfig)
+	 control((cnt : 1) (prog[P] : notYet) (#ms[P ] : 0) CC)
+   	  =>
+   	 base-state((p-state[P] : PS))
+   	 start-state(SC)
+	 snapshot((p-state[P] : PS) SSC)
+    	 finish-state((p-state[P] : PS))
+    	 control((cnt : 0) (prog[P] : completed) (#ms[P] : 0) CC)
+  	 if (SC =/= empBConfig) .
+
+  	 crl [record&cnt>1&#ms=0] :
+   	 base-state((p-state[P] : PS) BC)
+    	 start-state(SC)
+   	 snapshot(SSC)
+   	 control((cnt : NzN') (prog[P] : notYet) (#ms[P] : 0) CC)
+   	  =>
+   	 base-state((p-state[P] : PS) bcast(BC, P, marker))
+    	 start-state(SC)
+    	 snapshot((p-state[P] : PS) SSC)
+    	 control((cnt : sd(NzN',1)) (prog[P] : completed) (#ms[P] : 0) CC)
+  	 if (NzN' > 1) /\ (SC =/= empBConfig) .
+
+  	 crl [record&cnt>1&#ms>0] :
+   	 base-state((p-state[P] : PS) BC)
+    	 start-state(SC)
+   	 snapshot(SSC)
+    	 control((prog[P] : notYet) (#ms[P] : NzN') CC)
+   	  =>
+   	 base-state((p-state[P] : PS) bcast(BC,P,marker))
+    	 start-state(SC)
+   	 snapshot((p-state[P] : PS) inchans(BC,P) SSC)
+   	 control((prog[P] : started) (#ms[P] : NzN') CC)
+  	 if (SC =/= empBConfig) .
+
+	 *** Receipt of Marker
+	 
+    	 rl [recMkr&notYet&#ms=1&cnt=1] :
+   	 base-state((p-state[P] : PS) (c-state[Q,P,N] : marker | C) BC)
+  	 snapshot(SSC)
+   	 finish-state(empBConfig)
+         control((prog[P] : notYet) (#ms[P] : 1) (cnt : 1) (done[Q,P,N] : false) CC)
+          =>
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : C) BC)
+         snapshot((p-state[P] : PS) (c-state[Q,P,N] : empChan) SSC)
+         finish-state((p-state[P] : PS) (c-state[Q,P,N] : C) BC)
+         control((prog[P] : completed) (#ms[P] : 0) (cnt : 0) (done[Q,P,N] : true) CC) .
+
+         crl [recMkr&notYet&#ms=1&cnt>1] :
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : marker | C) BC)
+         snapshot(SSC)
+         control((prog[P] : notYet) (#ms[P] : 1) (cnt : NzN) (done[Q,P,N] : false) CC)
+          =>
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : C) bcast(BC,P,marker))
+         snapshot((p-state[P] : PS ) (c-state[Q,P,N] : empChan) SSC)
+         control((prog[P] : completed) (#ms[P] : 0) (cnt : sd(NzN,1)) (done[Q,P,N] : true) CC)
+         if NzN > 1 .
+
+
+         crl [recMkr&notYet&#ms>1&cnt>1] :
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : marker | C) BC)
+         snapshot(SSC)
+         control((prog[P] : notYet) (#ms[P] : NzN') (cnt : NzN) (done[Q,P,N] : false) CC)
+         =>
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : C) bcast(BC,P,marker))
+         snapshot((p-state[P] : PS ) (c-state[Q,P,N] : empChan) inchans(BC,P) SSC)
+         control((prog[P] : started) (#ms[P] : sd(NzN', 1)) (cnt : NzN) (done[Q,P,N] : true) CC)
+         if NzN' > 1 .
+
+         rl [recMkr&started&#ms=1&cnt=1] :
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : marker | C) BC)
+         finish-state(empBConfig)
+         control((prog[P] : started) (#ms[P] : 1) (cnt : 1) (done[Q,P,N] : false) CC)
+         =>
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : C) BC)
+         finish-state((p-state[P] : PS) (c-state[Q,P,N] : C) BC)
+         control((prog[P] : completed) (#ms[P] : 0) (cnt : 0) (done[Q,P,N] : true) CC) .
+
+         crl [recMkr&started&#ms=1&cnt>1] :
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : marker | C) BC)
+         control((prog[P] : started) (#ms[P] : 1) (cnt : NzN) (done[Q,P,N] : false) CC)
+         =>
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : C) BC)
+         control((prog[P] : completed) (#ms[P] : 0) (cnt : sd(NzN,1)) (done[Q,P,N] : true) CC)
+         if NzN > 1 .
+
+         crl [recMkr&started&#ms>1&cnt>1] :
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : marker | C) BC)
+         control((prog[P] : started) (#ms[P] : NzN') (cnt : NzN)
+         (done[Q,P,N] : false) CC)
+          =>
+         base-state((p-state[P] : PS) (c-state[Q,P,N] : C) BC)
+         control((prog[P] : started) (#ms[P] : sd(NzN',1)) (cnt : NzN) (done[Q,P,N] : true) CC)
+         if NzN' > 1 .
+endm
+
+************************* Some underlying distributed systems **********************
+mod SYSTEM1 is    	  
+          ex UDS .
+	  pr NAT .
+	  sort Token .
+	  subsort Token < Msg .
+	  op t : Nat -> Token [ctor] .
+	  	  
+          op p : Nat -> Pid [ctor] .
+	  subsort Token < PState .
+          op noToken : -> PState [ctor] .
+          op __ : PState PState -> PState [ctor assoc comm id: noToken] .
+
+         op initial : -> Config .
+	 eq initial = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(1),1]: empChan)
+         (c-state[p(1),p(0),0]: empChan) .
+ 	 	  
+          op initial1 : -> Config .
+	  eq initial1 = (p-state[p(0)]: t(0)) (p-state[p(1)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(1),p(0),0]: empChan) .
+
+          op initial2 : -> Config .
+	 eq initial2 = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(1),1]: empChan)
+         (c-state[p(1),p(0),0]: empChan) .
+
+	 op initial3 : -> Config .
+	 eq initial3 = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (p-state[p(2)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(2),0]: empChan)
+         (c-state[p(1),p(0),0]: empChan) (c-state[p(1),p(2),0]: empChan) .
+
+	 op initial4 : -> Config .
+	 eq initial4 = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (p-state[p(2)]: noToken)
+	 (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(2),0]: empChan)
+         (c-state[p(1),p(0),0]: empChan) (c-state[p(1),p(2),0]: empChan) .
+
+	 op initial5 : -> Config .
+	 eq initial5 = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (p-state[p(2)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(2),0]: empChan)
+         (c-state[p(1),p(0),0]: empChan) (c-state[p(1),p(2),0]: empChan) .
+	 
+	 op initial6 : -> Config .
+	 eq initial6 = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (p-state[p(2)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(1),1]: empChan)
+         (c-state[p(1),p(2),0]: empChan) (c-state[p(2),p(0),0]: empChan) .
+	 	 
+	 op initial7 : -> Config .
+	 eq initial7 = (p-state[p(0)]: (t(0) t(1) t(2)))
+         (p-state[p(1)]: noToken) (p-state[p(2)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(1),1]: empChan)
+         (c-state[p(1),p(2),0]: empChan) (c-state[p(2),p(0),0]: empChan) .
+	 
+	 op initial8 : -> Config .
+	 eq initial8 = (p-state[p(0)]: (t(0) t(1))) (p-state[p(1)]: noToken)
+         (p-state[p(2)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(0),p(1),1]: empChan)
+         (c-state[p(0),p(2),0]: empChan) (c-state[p(1),p(2),0]: empChan)
+         (c-state[p(2),p(0),0]: empChan) .
+	 
+	 op initial9 : -> Config .
+	 eq initial9 = (p-state[p(0)]: noToken)
+       	 (p-state[p(1)]: noToken) (p-state[p(2)]: noToken)
+         (p-state[p(3)]: t(0)) (p-state[p(4)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(1),p(2),0]: empChan)
+         (c-state[p(2),p(3),0]: empChan) (c-state[p(2),p(4),0]: empChan)
+         (c-state[p(3),p(0),0]: empChan) (c-state[p(3),p(0),1]: empChan)
+         (c-state[p(3),p(2),0]: empChan) (c-state[p(4),p(3),0]: empChan) .
+
+         op initial10 : -> Config .
+	 eq initial10 =  (p-state[p(0)]: (t(0) t(1)))
+       	 (p-state[p(1)]: noToken) (p-state[p(2)]: noToken)
+         (p-state[p(3)]: noToken) (p-state[p(4)]: noToken)
+         (c-state[p(0),p(1),0]: empChan) (c-state[p(1),p(2),0]: empChan)
+         (c-state[p(2),p(3),0]: empChan) (c-state[p(2),p(4),0]: empChan)
+         (c-state[p(3),p(0),0]: empChan) (c-state[p(3),p(0),1]: empChan)
+         (c-state[p(3),p(2),0]: empChan) (c-state[p(4),p(3),0]: empChan) .
+
+	  vars P Q : Pid .
+	  var M : Msg .
+	  var CS : MsgQueue .
+	  var N : Nat .
+	  var T : Token .
+	  var PS : PState .
+	  var BC : Config .
+	  
+	  rl [chgStt] :
+          (p-state[P] : (T PS)) BC
+           =>
+          (p-state[P] : PS) BC .
+
+	  rl [receiveToken] :
+          (p-state[P] : PS) (c-state[Q,P,N] : T | CS) BC
+	   =>
+	  (p-state[P] : (T PS)) (c-state[Q,P,N] : CS) BC .
+
+
+	  rl [sendToken] :
+	  (p-state[P] : (T PS)) (c-state[P,Q,N] : CS) BC
+	   =>
+	  (p-state[P] : PS) (c-state[P,Q,N] : enq(CS,T)) BC .	  	  
+endm
+
+***----------------------The system 2 --------------------------------
+mod SYSTEM2 is
+    	  
+          ex UDS .
+	  pr NAT .
+          op p : Nat -> Pid [ctor] .
+	  op ps : Nat -> PState [ctor] .
+	  op m :  -> Msg [ctor] .
+	  
+          op initial : -> Config .
+	      
+          eq initial = (p-state[p(0)] : ps(0))(p-state[p(1)] : ps(2))(p-state[p(3)] : ps(0))(c-state[p(0), p(1), 0]: empChan) (c-state[p(2), p(1), 0]: empChan) (c-state[p(0), p(2), 0]: empChan) (c-state[p(0), p(1), 1]: empChan) .
+
+	  vars P Q : Pid .
+	  var M : Msg .
+	  var CS : MsgQueue .
+	  var N : Nat .
+
+	  rl [chgStt1] :
+	  (p-state[P]: ps(1))
+	   =>
+	  (p-state[P]: ps(2)) .
+
+	  rl [chgStt2] :
+	  (p-state[P]: ps(2))
+	   =>
+	  (p-state[P]: ps(3)) .
+
+	  rl [chgStt3] :
+	  (p-state[P]: ps(3))
+	   =>
+	  (p-state[P]: ps(1)) .
+ 
+	  rl[sndMsg1] :
+	  (p-state[P]: ps(1)) (c-state[P, Q, N]: CS)
+	   =>
+	  (p-state[P]: ps(2)) (c-state[P, Q, N]: enq(CS, m)) .
+
+	  rl[sndMsg2] :
+	  (p-state[P]: ps(2)) (c-state[P, Q, N]: CS)
+	   =>
+	  (p-state[P]: ps(3)) (c-state[P, Q, N]: enq(CS, m)) .
+
+          rl[sndMsg3] :
+          (p-state[P]: ps(3)) (c-state[P, Q, N]: CS)
+           =>
+          (p-state[P]: ps(1)) (c-state[P, Q, N]: enq(CS, m)) .
+
+          rl[recMsg1] :
+          (p-state[P]: ps(1)) (c-state[Q, P, N]: M | CS)
+           =>
+          (p-state[P]: ps(3)) (c-state[Q, P, N]: CS) .
+
+          rl[recMsg2] :
+          (p-state[P]: ps(3)) (c-state[Q, P, N]: M | CS)
+           =>
+          (p-state[P]: ps(2)) (c-state[Q, P, N]: CS) .
+
+ 	  rl[recMsg2] :
+          (p-state[P]: ps(2)) (c-state[Q, P, N]: M | CS)
+           =>
+          (p-state[P]: ps(1)) (c-state[Q, P, N]: CS) .
+endm
+
+
+***----------------------The system 3 --------------------------------
+mod SYSTEM3 is
+     
+          ex UDS .
+          pr NAT .
+ 
+          op p : Nat -> Pid [ctor] .
+          op token : -> Msg [ctor] .
+ 
+          subsort Msg < PState .
+          op none : -> PState [ctor] .
+         
+          op initial : -> Config .
+          op initial1 : -> Config .
+    
+          eq initial = (p-state[p(0)]: token) (p-state[p(1)]: none) (c-state[p(0), p(1), 0]:  empChan) (c-state[p(1), p(0), 0]: empChan) .
+          eq initial1 = (p-state[p(0)]: none) (p-state[p(1)]: token) (c-state[p(0), p(1), 0]:  empChan) (c-state[p(1), p(0), 0]: empChan) .
+
+
+	  vars P Q : Pid .
+	  var CS : MsgQueue .
+	  var BC : Config .
+ 	  var N : Nat .
+ 
+	  rl[sndToken] :
+ 	  ((p-state[P]: token) (c-state[P, Q, N]: CS) BC)
+ 	   =>
+ 	  ((p-state[P]: none) (c-state[P, Q, N]: enq(CS, token)) BC) .
+
+          rl[recMsg1] :
+          ((p-state[P]: none) (c-state[Q, P, N]: token | CS) BC)
+          =>
+          ((p-state[P]: token) (c-state[Q, P, N]: CS) BC) .
+
+	   rl[delete] :
+          ((p-state[P]: token) BC)
+          =>
+          ((p-state[P]: none) BC) .
+
+          rl[sndToken] :
+ 	  ((p-state[P]: token) (c-state[P, Q, N]: CS) BC)
+ 	  =>
+ 	  ((p-state[P]: none) (c-state[P, Q, N]: enq(CS, token)) BC) .
+       
+endm
+
+
+***************** Specification of function CL *****************************************
+
+*** Specification of function CL-INIT
+
+mod CL-INIT is
+    ex UDS .
+    ex CLDSA .
+    
+    subsort Config < BConfig .
+    subsort MsgQueue < MMsgQueue .
+    
+    vars P P1 Q Q1 : Pid .
+    var PS : PState .
+    var N : Nat .
+    vars CS MS : MsgQueue .
+    vars BC CF CF1 : Config .
+    var BCF : BConfig .
+    var M : MMsg .
+
+    op chanTypeChan : MsgQueue -> MMsgQueue .
+    eq chanTypeChan(CS) = CS .
+
+    op chanConfigToBConfig : Config -> BConfig .
+    eq chanConfigToBConfig((p-state[P]: PS) CF) = (p-state[P]: PS) chanConfigToBConfig(CF) .
+    eq chanConfigToBConfig((c-state[P,Q,N]: MS) CF) = (c-state[P,Q,N]: chanTypeChan(MS)) chanConfigToBConfig(CF) .
+    eq chanConfigToBConfig(empConfig) = empBConfig .  
+
+    op cntN : Config -> Nat .
+    eq cntN(empConfig) = 0 .
+    eq cntN((p-state[P] : PS) CF) = 1 + cntN(CF) .
+    eq cntN((c-state[P, Q, N] : CS) CF) = cntN(CF) .
+
+
+    op msN : Pid Config -> Nat .
+    eq msN(P, empConfig) = 0 .
+    eq msN(P, (p-state[P1]: PS) CF) = msN(P,CF) .
+    eq msN(P, (c-state[P1, Q1, N]: CS) CF) = if (P == Q1) then 1 + msN(P, CF) else msN(P, CF) fi .
+
+    op mkCnt : Config -> CtlConfig .
+    eq mkCnt(CF) = (cnt : cntN(CF)) .
+
+    op mkProg : Config -> CtlConfig .
+    eq mkProg(empConfig) = empCtlConfig .
+    eq mkProg((p-state[P]: PS) CF) = (prog[P]: notYet) mkProg(CF) .
+    eq mkProg((c-state[P,Q,N]: MS) CF) = mkProg(CF) .
+
+    op mkDone : Config -> CtlConfig .
+    eq mkDone(empConfig) = empCtlConfig .
+    eq mkDone((p-state[P]: PS) CF) = mkDone(CF) .
+    eq mkDone((c-state[P, Q, N]: CS) CF) = (done[P, Q, N]: false) mkDone(CF) .
+
+    op mkMs : Config Config -> CtlConfig .
+    eq mkMs(empConfig, CF1) = empCtlConfig .
+    eq mkMs((p-state[P]: PS) CF, CF1) = (#ms[P]: msN(P, CF1)) mkMs(CF, CF1) .
+    eq mkMs((c-state[P, Q, N]: CS) CF, CF1) = mkMs(CF, CF1) .
+
+    op InitCtlConfig : Config -> CtlConfig .
+    eq InitCtlConfig(BC) = mkCnt(BC) mkMs(BC, BC) mkDone(BC) mkProg(BC) .
+
+    op clIntial : Config -> MBConfig .
+    eq clIntial(BC) = base-state(BC) start-state(empBConfig) snapshot(empBConfig) finish-state(empBConfig) control(InitCtlConfig(BC)) .
+endm
+
+*** Specification of function CL-IRANS
+
+mod TRANSITION-TRANS is
+    pr META-LEVEL .
+    ex UDS .
+    ex CLDSA .
+
+    var M : Module .
+    vars L F : Qid .
+    var AtS : AttrSet .
+    vars T T' T1 T2 T3 : Term .
+    vars TL TL1 TL2 TL1' TL2' : TermList .
+    var Cd : Condition .
+    var H : Header .
+    vars IL IL' : ImportList .
+    var SS : SortSet .
+    var SSDS : SubsortDeclSet .
+    var OPDS : OpDeclSet .
+    var MAS : MembAxSet .
+    var EqS : EquationSet .
+    vars RlS RlS' : RuleSet .
+    var V : Variable .
+    var C : Constant .
+    vars P Q : Pid .
+    var PS PS1 : PState .
+    var BC : Config .
+    vars OC OC1 : OCom .
+    eq OC OC = OC .
+
+    op setRls : Module RuleSet -> Module .
+    eq setRls(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, RlS') = mod H is IL sorts SS . SSDS OPDS MAS EqS RlS' endm .
+    eq setRls(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, RlS) = if RlS == none 
+    then fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm 
+    else mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm 
+    fi .
+
+    op addImports : Module ImportList -> Module .
+    eq addImports(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, IL') = mod H is IL IL' sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq addImports(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, IL') = fmod H is IL IL' sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op cl-Trans : Qid -> Module .
+    op cl-Trans : Module -> Module .
+    op cl-Trans : Module RuleSet -> RuleSet .
+
+    eq cl-Trans(H) = cl-Trans(upModule(H, false)) .
+    eq cl-Trans(M) = setRls(M, cl-Trans(M, getRls(M))) .
+
+    ceq  cl-Trans(M, rl T => T' [AtS] . RlS) =  (rl 'base-state[changeSort(T)] => 'base-state[changeSort(T')] [AtS] .) cl-Trans(M, RlS) if (checkKind(T') == 'changeState) .
+    ceq  cl-Trans(M, rl T => T' [AtS] . RlS) =  (rl 'base-state[changeSort(T)] => 'base-state[changeSort(T')] [AtS] .) cl-Trans(M, RlS) if (checkKind(T') == 'sendMessage) .
+    ceq  cl-Trans(M, rl T => T' [AtS] . RlS) =  recTrans(rl T => T' [AtS] .) cl-Trans(M, RlS) if (checkKind(T') == 'receiveMessage) .
+    eq cl-Trans(M, none) = none .
+
+    op recTrans : RuleSet -> RuleSet .
+    eq recTrans(rl T => T' [AtS] .) = (rl '__['base-state[changeSort(T)],  '__['finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'notYet.Prog]]]]] => '__['base-state[changeSort(T')], '__['finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'notYet.Prog]]]]] [AtS] .) (rl '__['base-state[changeSort(T)], 'finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'completed.Prog]]]] => '__['base-state[changeSort(T')], 'finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'completed.Prog]]]] [AtS] .) (rl '__['base-state[changeSort(T)], 'finish-state['empBConfig.BConfig], 'snapshot['__['SSC:BConfig,
+    'c-state`[_`,_`,_`]:_[getChanID(T),
+    'MMSS:MMsgQueue]]],'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),
+    'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'false.Bool]]]] => '__['base-state[changeSort(T')], 'finish-state['empBConfig.BConfig], 'snapshot['__['SSC:BConfig,
+    'c-state`[_`,_`,_`]:_[getChanID(T),'enq[
+    'MMSS:MMsgQueue, getMessage(T)]]]],'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'false.Bool]]]] [AtS] .) (rl '__['base-state[changeSort(T)], 'finish-state['empBConfig.BConfig], 'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),
+    'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'true.Bool]]]] => '__['base-state[changeSort(T')], 'finish-state['empBConfig.BConfig], 'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'true.Bool]]]] [AtS] .) .
+ 
+    op changeSort : TermList -> TermList .
+    eq changeSort(F[TL]) = F[changeSort(TL)] .
+    eq changeSort((F[TL], TL1)) = (F[changeSort(TL)], changeSort(TL1)) .
+  
+    ceq changeSort((V, TL)) = (qid(string(getName(V)) + ":" + "BConfig"), changeSort(TL)) if (getType(V) == 'Config) .
+    ceq changeSort((V, TL)) = (qid(string(getName(V)) + ":" + "MMsgQueue"), changeSort(TL)) if (getType(V) == 'MsgQueue) .
+    ceq changeSort((V, TL)) = (V, changeSort(TL))  if not ((getType(V) == 'Config) or (getType(V) == 'MsgQueue)) .
+    
+    ceq changeSort((C, TL)) = (qid(string(getName(C)) + "." + "BConfig"), changeSort(TL)) if (getType(C) == 'Config) .
+    ceq changeSort((C, TL)) = (qid(string(getName(C)) + "." + "MMsgQueue"), changeSort(TL)) if (getType(C) == 'MsgQueue) .
+    ceq changeSort((C, TL)) = (C, changeSort(TL)) if not ((getType(C) == 'Config) or (getType(C) == 'MsgQueue)) .
+
+    ceq changeSort(V) = qid(string(getName(V)) + ":" + "BConfig") if (getType(V) == 'Config) .
+    ceq changeSort(V) = qid(string(getName(V)) + ":" + "MMsgQueue") if (getType(V) == 'MsgQueue) .
+    ceq changeSort(V) = V if not ((getType(V) == 'Config) or (getType(V) == 'MsgQueue)) .
+    
+    ceq changeSort(C) = qid(string(getName(C)) + "." + "BConfig") if (getType(C) == 'Config) .
+    ceq changeSort(C) = qid(string(getName(C)) + "." + "MMsgQueue") if (getType(C) == 'MsgQueue) .
+    ceq changeSort(C) = C if not ((getType(C) == 'Config) or (getType(C) == 'MsgQueue)) .
+
+    eq changeSort(empty) = empty .
+
+
+    op changeBconfigToConfig : TermList -> TermList .
+    eq changeBconfigToConfig(F[TL]) = F[changeBconfigToConfig(TL)] .
+    eq changeBconfigToConfig((F[TL], TL1)) = (F[changeBconfigToConfig(TL)], changeBconfigToConfig(TL1)) .
+    
+    ceq changeBconfigToConfig((V, TL)) = (qid(string(getName(V)) + ":" + "Config"), changeBconfigToConfig(TL)) if (getType(V) == 'BConfig) .
+    ceq changeBconfigToConfig((V, TL)) = (qid(string(getName(V)) + ":" + "MsgQueue"), changeBconfigToConfig(TL)) if (getType(V) == 'MMsgQueue) .
+    ceq changeBconfigToConfig((V, TL)) = (V, changeBconfigToConfig(TL))  if not ((getType(V) == 'BConfig) or (getType(V) == 'MMsgQueue)) .
+    
+    ceq changeBconfigToConfig((C, TL)) = (qid(string(getName(C)) + "." + "Config"), changeBconfigToConfig(TL)) if (getType(C) == 'BConfig) .
+    ceq changeBconfigToConfig((C, TL)) = (qid(string(getName(C)) + "." + "MsgQueue"), changeBconfigToConfig(TL)) if (getType(C) == 'MMsgQueue) .
+    ceq changeBconfigToConfig((C, TL)) = (C, changeBconfigToConfig(TL)) if not ((getType(C) == 'BConfig) or (getType(C) == 'MMsgQueue)) .
+
+    eq changeBconfigToConfig(empty) = empty .
+   
+    
+
+    op testPstate : Qid -> Bool .
+    op testPstate : Term -> Bool .
+    eq testPstate(F) = if (F == 'p-state`[_`]:_) then true else false fi .
+    eq testPstate(F[TL1]) = if (F == 'p-state`[_`]:_) then true else false fi .
+
+    op testChannel : Qid -> Bool .
+    op testChannel : Term -> Bool .
+    eq testChannel(F) = if (F == 'c-state`[_`,_`,_`]:_) then true else false fi .
+    eq testChannel(F[TL1]) = if (F == 'c-state`[_`,_`,_`]:_) then true else false fi .
+
+    op getPid : TermList -> Term .
+
+    *** ceq getPid(F[T, TL1]) = T if (F == 'p-state`[_`]:_) .
+    ceq getPid(F[T, TL1]) = T if (testPstate(F) == true) .
+    ceq getPid(F[TL1]) = getPid(TL1) if (F == '__) .
+    ceq getPid(F[TL1]) = none if (F == 'c-state`[_`,_`,_`]:_) .
+    eq getPid((T, TL)) = if (testPstate(T) == true) then getPid(T) else getPid(TL) fi .
+
+
+    op getPState : TermList -> Term .
+
+    *** ceq getPState(F[T, TL1]) = TL1 if (testPstate(F) == true) .
+    ceq getPState(F[T, TL1]) = TL1 if (F == 'p-state`[_`]:_) .
+    ceq getPState(F[TL1]) = getPState(TL1) if (F == '__) .
+    ceq getPState(F[TL1]) = none if (F == 'c-state`[_`,_`,_`]:_) .
+    eq getPState((T, TL)) = if (testPstate(T) == true) then getPState(T) else getPState(TL) fi .
+
+    op getChanID : TermList -> Term .
+    ceq getChanID(F[T, TL1]) = none if (F == 'p-state`[_`]:_) .
+    ceq getChanID(F[TL1]) = getChanID(TL1) if (F == '__) .
+    *** ceq getChanID(F[T, T1, T2, T3]) =  T, T1, T2 if (F == 'c-state`[_`,_`,_`]:_) .
+    ceq getChanID(F[T, T1, T2, T3]) =  T, T1, T2 if (testChannel(F) == true) .
+    eq getChanID((T, TL)) = if (testChannel(T) == true) then getChanID(T) else getChanID(TL) fi .
+
+    op getChanState :  TermList -> Term .
+    ceq getChanState(F[T, TL1]) = none if (F == 'p-state`[_`]:_) .
+    ceq getChanState(F[TL1]) = getChanState(TL1) if (F == '__) .
+    ceq getChanState(F[T, T1, T2, T3]) =  getSeque(T3) if (F == 'c-state`[_`,_`,_`]:_) .
+    eq getChanState((T, TL)) = if (testChannel(T) == true) then getChanState(T) else getChanState(TL) fi .
+
+    op getSeque : Term -> Term .
+    eq getSeque('_|_[T, T']) = T' .
+
+
+    op getMessage :  TermList -> Term .
+    ceq getMessage(F[T, TL1]) = none if (F == 'p-state`[_`]:_) .
+    ceq getMessage(F[TL1]) = getMessage(TL1) if (F == '__) .
+    ceq getMessage(F[T, T1, T2, T3]) =  getM(T3) if (F == 'c-state`[_`,_`,_`]:_) .
+    eq getMessage((T, TL)) = if (testChannel(T) == true) then getMessage(T) else getMessage(TL) fi .
+
+    op getM : Term -> Term .
+    eq getM('_|_[T, T']) = T .
+
+    op checkKind1 : TermList  -> Qid .
+    *** op checkKind1 : TermList TermList -> Qid .
+    ceq checkKind1(F[TL1]) = 'changeState if (F == 'p-state`[_`]:_) .
+    ceq checkKind1(F[TL2]) = if (checkSend(TL2) == true) then 'sendMessage else 'receiveMessage fi if  (F == 'c-state`[_`,_`,_`]:_) .
+    ceq checkKind1(F[TL1]) = checkKind1(TL1) if (F == '__) .
+    eq checkKind1((F[TL1], TL1')) = checkKind1(TL1') .
+    *** ceq checkKind(T TL1, T TL2) = checkKind(TL1, TL2) if (T == 'BC:Config) .
+    op deleteBC : TermList -> TermList .
+    ceq deleteBC(F[TL1]) = deleteBC(TL1) if (F == '__) .
+    ceq deleteBC(F[TL1]) = F[TL1] if (F == 'p-state`[_`]:_) .
+    ceq deleteBC(F[TL1]) = F[TL1] if (F == 'c-state`[_`,_`,_`]:_) .
+    eq deleteBC((T, TL1)) = if (T == 'BC:Config) then TL1 else (T, deleteBC(TL1)) fi .  
+
+    op checkKind : TermList -> Qid .
+    eq checkKind(TL1) = checkKind1(deleteBC(TL1)) .
+    
+    op checkKind2 : TermList TermList -> Nat .
+    eq checkKind2(TL1, TL2) = if (checkSend(TL2) == true) then 3 else 2 fi .
+
+    op checkSend : TermList -> Bool .
+    eq checkSend(V) = false .
+    eq checkSend(C) = false .
+    eq checkSend(F[TL]) = if (F == 'enq) then true else checkSend(TL) fi .
+    eq checkSend((T, TL)) = checkSend(T) or checkSend(TL) .
+endm
+
+
+*** Specification of function CL
+mod CL is
+
+    pr META-LEVEL .
+    ex CL-INIT .
+    ex TRANSITION-TRANS .
+
+    var M : Module .
+    vars L F : Qid .
+    var AtS : AttrSet .
+    vars T T' T1 T2 T3 : Term .
+    vars TL TL1 TL2 TL1' TL2' : TermList .
+    var Cd : Condition .
+    vars H H' : Header .
+    vars IL IL' : ImportList .
+    var I : Import .
+    vars SS SS' : SortSet .
+    vars SSDS SSDS' : SubsortDeclSet .
+    vars OPDS OPDS' : OpDeclSet .
+    var MAS : MembAxSet .
+    vars EqS EqS'  : EquationSet .
+    vars RlS RlS' : RuleSet .
+    var V : Variable .
+    var C : Constant .
+    var P : Type .
+    var PL : TypeSet .
+    vars TpL TpL' : TypeList .
+    vars Tp Tp' Tp'' Tp''' : Type .
+    
+    op setSort : Module SortSet -> Module .
+    eq setSort(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, SS') = mod H is IL sorts SS ; SS' . SSDS OPDS MAS EqS RlS endm .
+    eq setSort(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, SS') = fmod H is IL sorts SS SS' . SSDS OPDS MAS EqS endfm .
+
+    op setSubSort : Module SubsortDeclSet -> Module .
+    eq setSubSort(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, SSDS') = mod H is IL sorts SS . SSDS SSDS' OPDS MAS EqS RlS endm .
+    eq setSubSort(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, SSDS') = fmod H is IL sorts SS . SSDS SSDS' OPDS MAS EqS endfm .
+    
+    op setEqSet : Module EquationSet -> Module .
+    eq setEqSet(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, EqS') = mod H is IL sorts SS . SSDS OPDS MAS EqS' RlS endm .
+    eq setEqSet(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, EqS') = fmod H is IL sorts SS . SSDS OPDS MAS EqS' endfm .
+
+    op setOpDecSet : Module OpDeclSet -> Module .
+    eq setOpDecSet(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, OPDS') = mod H is IL sorts SS . SSDS OPDS' MAS EqS RlS endm .
+    eq setOpDecSet(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, OPDS') = fmod H is IL sorts SS . SSDS OPDS' MAS EqS endfm .
+
+    op delImportList : ImportList -> ImportList .
+    eq delImportList(I IL) = if (I == (including 'UDS .)) or (I == (extending 'UDS .)) then delImportList(IL) else I delImportList(IL) fi .
+    eq delImportList(nil) = nil .
+    
+    op delImports : Module -> Module .
+    eq delImports(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm) = mod H is delImportList(IL) sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq delImports(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm) = fmod H is delImportList(IL) sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op chaneName : Module Qid -> Module .
+    eq chaneName(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, H') = mod qid(string(H) + "-" + string(H')) is IL sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq chaneName(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, H') = fmod qid(string(H) + "-" + string(H')) is IL sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op getSort : OpDeclSet -> TypeSet .
+    eq getSort(none) = nil .
+    eq getSort(op L : PL -> P [AtS] .) = P .
+
+    op changeOpe : OpDeclSet -> OpDeclSet .
+    eq changeOpe(op F : TpL -> Tp [AtS] . OPDS) = if (Tp == 'Config) then (op F : TpL -> 'MBConfig [AtS] .) changeOpe(OPDS) else (op F : TpL -> Tp [AtS] .) changeOpe(OPDS) fi .
+    eq changeOpe(none) = none .
+
+    op reName : Constant -> Constant .
+    eq reName(C) = qid(string(getName(C)) + "." + "MBConfig") .
+
+    op CL : Qid -> Module .
+    op CL : Module -> Module .
+
+    eq CL(H) = CL(upModule(H, false)) .
+    eq CL(M) = setSort(setSort(setSubSort(chaneName(delImports(setOpDecSet(setRls(cl-Initial(addImports(M, (including 'CLDSA .))), cl-Trans(M, getRls(M))), changeOpe(getOps(M)))), 'CLDSA), (subsort 'MsgQueue < 'MMsgQueue . subsort 'Config < 'BConfig .)), 'MsgQueue), 'Config) .
+
+    op cl-Initial : Module -> Module .
+    op cl-Initial : Module EquationSet -> EquationSet .
+
+    eq cl-Initial(M) = setEqSet(M, cl-Initial(M, getEqs(M)))  .
+    eq cl-Initial(M, eq T = T' [AtS] . EqS) = if (getType(T) == 'Config) then (eq reName(T) = changeSort(upTerm(clIntial(downTerm(T', empConfig)))) [AtS] .) cl-Initial(M, EqS) else (eq T = T' [AtS] .) cl-Initial(M, EqS) fi .
+
+    eq cl-Initial(M, none) = none .
+endm
+
+
+**************************************** Experiment ****************************************
+
+mod MODEL-CHECKING is
+pr CL .
+pr SYSTEM1 .
+var CC : CtlConfig .
+vars P Q : Pid .
+var CS : MsgQueue .
+var N : Nat .
+var M : Module .
+vars BC SC FC SSC : BConfig .
+var MC : MBConfig .
+var T1 : Term .
+var T2 : Term .
+var T3 : Term .
+
+
+op unReachable : Term Term -> Term .
+eq unReachable(T1, T2) = if getTerm(metaSearch(upModule('SYSTEM1, false), changeBconfigToConfig(T1), changeBconfigToConfig(T2), nil,'*, unbounded, 0)) == getTerm((failure).ResultTriple?) then 'true.Bool else 'false.Bool fi .
+
+op unReCon : Term Term Term -> Term .
+eq unReCon(T1, T2, T3) = if unReachable(T1, T2) == 'true.Bool or unReachable(T2, T3) == 'true.Bool then 'true.Bool else 'false.Bool fi .
+
+op ReCon : Term Term Term -> Term .
+eq ReCon(T1, T2, T3) = if (not (unReachable(T1, T2) == 'true.Bool)  or not (unReachable(T2, T3) == 'true.Bool)) then 'true.Bool else 'false.Bool fi .
+
+endm
+
+************************* Experiments**********************************************************************************
+
+****** Model Checking DSR ************************
+***(red metaSearch(CL('SYSTEM1), 'initial.MBConfig,'__['MC:MBConfig,'start-state['SC:BConfig],'snapshot[
+'SSC:BConfig],'finish-state['FC:BConfig]], '_!=_['FC:BConfig, 'empBConfig.BConfig] = 'true.Bool /\ unReCon('SC:BConfig, 'SSC:BConfig, 'FC:BConfig) = 'true.Bool, '*, unbounded, 0) .)
+
+
+****** Model Checking UDSR ************************
+***(red metaSearch(CL('SYSTEM1), 'initial.MBConfig,'__['MC:MBConfig,'start-state['SC:BConfig],'snapshot[
+'SSC:BConfig],'finish-state['FC:BConfig]], '_!=_['FC:BConfig, 'empBConfig.BConfig] = 'true.Bool /\ ReCon('SC:BConfig, 'SSC:BConfig, 'FC:BConfig) = 'true.Bool, '*, unbounded, 0) .)
+
+eof
+

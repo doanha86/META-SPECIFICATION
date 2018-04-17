@@ -1,0 +1,786 @@
+
+*** Theory for Process Identifiers
+fmod PID is
+  
+	*** The sort for process identifiers
+	sort Pid .
+endfm
+
+*** Theory for Process States 
+fmod LOCAL-STATE is
+
+     	*** The sort for process states
+	sort LcState .	
+endfm
+
+*** Theory for Process States 
+fmod STATE is
+
+     	*** The sort for process states
+	sort StatePs .
+	ops active passive : -> StatePs .	
+endfm
+
+*** Theory for Message Identifiers
+fmod MESSAGE is
+  
+	*** The sort for message identifiers
+	sort Msg .
+endfm
+
+*** Module for Request messages
+fmod REQUEST is
+
+        sort Request .
+        op request : -> Request [ctor] .
+endfm
+
+*** Module for Message Identifiers and Markers
+fmod MUTIL-MESSAGE is
+
+        pr MESSAGE .
+	pr REQUEST .
+	sort MMsg .
+	subsorts Msg Request < MMsg .
+
+endfm
+
+fmod CHANNEL{X :: TRIV} is
+
+        sort MsgSet .
+	subsort X$Elt < MsgSet .
+	op empChan : -> MsgSet [ctor] .
+	op __ : MsgSet MsgSet -> MsgSet [ctor assoc comm id: empChan] .
+
+endfm
+
+*** Module for Channels of a UDS
+view Channels from TRIV to MESSAGE is
+        sort Elt to Msg .
+endv
+
+fmod CHANNEL-UDS is
+        ex CHANNEL{Channels} .
+	
+endfm
+
+
+*** Module for Channels of a CLDSA
+view mutilChannels from TRIV to MUTIL-MESSAGE is
+        sort Elt to MMsg .
+endv
+
+fmod CHANNEL-CLDSA is
+        pr (CHANNEL * (sort MsgSet to MMsgSet)) {mutilChannels} .
+endfm
+
+*** Module for  Observable Components of a UDS
+fmod OBSERVABLE-COMPONENT-UDS is
+        pr NAT .
+        pr PID .
+        pr STATE .
+	pr LOCAL-STATE .
+        pr CHANNEL-UDS .
+       
+        *** The sort for Observable Components of a UDS
+	sort OCom .
+	op <_, _, _> : Pid  StatePs LcState -> OCom [ctor] .
+	op [_, _, _] : Pid Pid MsgSet -> OCom [ctor] .
+endfm
+
+fmod UDS is
+	pr  OBSERVABLE-COMPONENT-UDS .
+
+	*** The sort for Process and Channel states
+	sort Config .
+	sort ListOCom .
+	
+	subsort OCom < Config .
+	op empConfig : -> Config [ctor] .
+	op _ _ : Config Config -> Config [ctor assoc comm id: empConfig] .     
+endfm
+
+fmod LIST-PAIR1 is
+     pr NAT .
+     pr PID .
+     	sort Pair .
+	sort ListPair .
+	subsort Pair < ListPair .
+	
+	op (_, _, _, _) : Pid Nat Nat Nat -> Pair .
+	op emp : -> ListPair [ctor] .
+	op _ _ : ListPair ListPair -> ListPair [ctor assoc comm id: emp] .
+	
+endfm
+
+
+fmod GLOBAL-OBSERVER is
+        pr NAT .
+	pr  LIST-PAIR1 .
+     	sort Global-obser .
+	sort Global-state .
+
+	ops request terminate sleep : -> Global-state .
+	op _, _, _, _ : ListPair Nat Nat Global-state -> Global-obser  .
+	
+endfm
+
+fmod UDS-FCA is
+     	pr UDS .
+	pr LIST-PAIR1 .
+	pr GLOBAL-OBSERVER .
+	
+	sort Meta-Config .		
+	op Base-state(_) Local-OB(_) Global-OB(_) : Config ListPair Global-obser -> Meta-Config .
+	op empMC : -> Meta-Config .
+
+endfm
+
+***----------------------The system  --------------------------------
+mod SYSTEM is
+     
+          pr UDS .
+          pr NAT .
+ 	  sort Token .
+	  sort TokenList .
+	  subsort Token < Msg .
+	  subsort Token < TokenList .
+	  subsort TokenList < LcState .
+	  
+          ops p1 p2 p3 : -> Pid [ctor] .
+          ops t1 t2 t3 : -> Token [ctor] .
+	  
+	  op p_ : Nat -> Pid [ctor] .
+          op t_ : Nat -> Token [ctor] .
+	  op none : -> Token [ctor] .
+	  op _;_ : TokenList TokenList -> TokenList [ctor assoc]  .
+
+          vars P Q : Pid .
+	  var CS : MsgSet .
+	  var BC : Config .
+ 	  var N : Nat .
+ 	  var T : Token .
+	  vars TL TL1 : TokenList .
+	  var PS : StatePs .
+	  
+
+          ***( rl[sndToken] :
+ 	  (< P, active, T ; TL > < Q, PS, TL1 > [P, Q, CS] BC)
+ 	   =>
+ 	  (< P, active, TL > < Q, passive, TL1 > [P, Q, T CS] BC) .
+
+          rl[recToken] :
+          (< Q, passive, TL > [P, Q, T CS] BC)
+ 	   =>
+ 	  (< Q, active, T ; TL > [P, Q, CS] BC) .
+
+	   rl[conToken] :
+           (< P, active, T ; TL > BC)
+           =>
+           (< P, active, TL > BC) .
+
+	   rl[bePassive] :
+           (< P, active, none > BC)
+           =>
+           (< P, passive, none > BC) .)
+          
+         
+          op initial2 : -> Config .
+          op initial1 : -> Config .
+	  op initial11 : -> Config .
+	  op initial12 : -> Config .
+	  op initial : -> Config .
+	  op initial3 : -> Config .
+	  op initial12 : -> Config .
+    
+          eq initial = < p1, active, t1 ; none > < p2, passive, none > < p3, passive, none > [p1, p2, empChan] [p2, p1, empChan] [p1, p3, empChan] [p3, p1, empChan]  [p2, p3, empChan] [p3, p2, empChan] .
+	  
+	  eq initial1 = < p1, active, t1 ; none > < p2, passive, t2 ; none > < p3, passive, none > [p1, p2, empChan] [p2, p1, empChan] [p1, p3, empChan] [p3, p1, empChan]  [p2, p3, empChan] [p3, p2, empChan] .
+	  
+	  eq initial11 = < p1, active, t1 ; none > < p2, active, t2 ; none > < p3, passive, none > [p1, p2, empChan] [p2, p1, empChan] [p1, p3, empChan] [p3, p1, empChan]  [p2, p3, empChan] [p3, p2, empChan] .
+
+          eq initial12 = < p1, active, t1 ; t2 ; none > < p2, passive, none > < p3, passive, none > [p1, p2, empChan] [p2, p1, empChan] [p1, p3, empChan] [p3, p1, empChan]  [p2, p3, empChan] [p3, p2, empChan] .
+	  
+	  eq initial12 = < p1, active, t1 ; t2 ; none > < p2, passive, none > < p3, passive, none > [p1, p2, empChan] [p2, p1, empChan] [p1, p3, empChan] [p3, p1, empChan]  [p2, p3, empChan] [p3, p2, empChan] .
+
+         eq initial2 = < p1, active, t1 ; none > < p2, passive, none > [p1, p2, empChan] [p2, p1, empChan] .
+	 eq initial3 = < p1, active, t1 ; none > < p2, passive, t1 ; none > [p1, p2, empChan] [p2, p1, empChan] .
+
+         op initial4 : -> Config .
+	 eq initial4 = < p 1, active, t 1 ; none > < p 2, passive, none > <
+    p 3, passive,  t 2 ; none > [p 1,p 2,empChan] [p 1,p 3,empChan] [p 2,p 1,
+    empChan] [p 2,p 3,empChan] [p 3,p 1,empChan] [p 3,p 2,empChan] .	                 
+endm
+
+
+fmod INIT is
+     pr UDS .
+     pr UDS-FCA .
+     
+     op init : Config -> Meta-Config .
+     op mkLCobser : Config -> ListPair .
+     op mkGBobser : Config -> Global-obser .
+     op count : Config -> Nat .
+     vars P Q : Pid .
+     var CS : MsgSet .
+     var BC : Config .
+   
+     vars TL TL1 : LcState .
+     var PS : StatePs .
+     
+     eq count(< P, PS, TL > BC) = 1 + count(BC) .
+     eq count([P, Q, CS] BC) = count(BC) .
+     eq count(empConfig) = 0 .
+
+     eq mkLCobser(< P, PS, TL > BC) = (P, 0, 0, 0) mkLCobser(BC) .
+     eq mkLCobser([P, Q, CS] BC) = mkLCobser(BC) .
+     eq mkLCobser(empConfig) = emp .
+
+     eq mkGBobser(BC) = emp, 0, count(BC), sleep .
+
+     eq init(BC) = Base-state(BC) Local-OB(mkLCobser(BC)) Global-OB(mkGBobser(BC)) .          
+endfm
+
+mod GENE-INIT is
+    pr SYSTEM .
+    
+    sort ConfigSet .
+    sort PidSet .
+    sort PidSetList .
+    sort TokenSet .
+    sort Pair1 .
+    sort PairSet .
+    sort PairSetList .
+    subsort Config < ConfigSet .
+    subsort Pid < PidSet .
+    subsort PidSet < PidSetList .
+    subsort Token < TokenSet .
+    subsort Pair1 < PairSet .
+    subsort PairSet < PairSetList .
+    
+
+    vars N1 N2 : Nat .
+    vars PIDS PIDS1 PIDS2 : PidSet .
+    vars PIDSL PIDSL1 PIDSL2 : PidSetList . 
+    vars TKS : TokenSet .
+    vars P P1 P2 : Pid .
+    vars T : Token .
+    vars TL : TokenList .
+    vars PA PA1 PA2 :  Pair1 .
+    vars PAS PAS1 PAS2 : PairSet .
+    vars PASL PASL1 PASL2 :  PairSetList .
+    vars C C1 C2 C3 : Config .
+    var PS : StatePs .
+    var CL : ConfigSet .
+     
+    op emp : -> PidSet [ctor] .
+    op _,_ : PidSet PidSet -> PidSet [ctor assoc id: emp] .
+    
+    op empPS : -> PidSetList [ctor] .
+    op _;_ : PidSetList PidSetList -> PidSetList [ctor assoc  id: empPS] .
+
+    op emp : -> TokenSet [ctor] .
+    op _,_ : TokenSet TokenSet -> TokenSet [ctor assoc comm id: emp] .
+
+   
+    
+    op emp : -> ConfigSet [ctor] .
+    op _;_ : ConfigSet ConfigSet -> ConfigSet [ctor assoc comm id: emp] .
+
+    op (_,_) : Token Pid -> Pair1 .
+    
+    op empS : -> PairSet [ctor] .
+    op _,_ : PairSet PairSet -> PairSet [ctor assoc id: empS] .
+
+    op empL : -> PairSetList [ctor] .
+    op _|_ : PairSetList PairSetList -> PairSetList [ctor assoc id: empL] .
+    
+    op geneInitial : Nat Nat -> ConfigSet .
+    op geneInitial : TokenSet PidSet -> ConfigSet .
+    op makeListToken : Nat -> TokenSet .
+    op makeListProc : Nat -> PidSet .
+    op geneProc : PidSet -> Config .
+    op geneToken : TokenSet PidSet -> PairSetList .
+    op geneChannel : PidSet PidSet -> Config .
+    op geneChannel1 : Pid PidSet -> Config .
+    op com : Token PidSet -> PairSet .
+    op getSet : TokenSet PidSet -> PairSetList .
+    op geneInitialList : Config PairSetList Config -> ConfigSet .
+    op mk : PairSet -> PairSetList .
+    op mk1 : Pair1 PairSetList -> PairSetList .
+    op divice : PairSet -> PairSetList .
+    op addTokProc : Config PairSet -> Config .
+    op addTokProc1 : Config Pair1 -> Config .
+    op count : ConfigSet -> Nat .
+    op addToken : Token TokenList -> TokenList .
+    
+    
+    eq geneInitial(N1, N2) =  geneInitial(makeListToken(N1), makeListProc(N2)) .
+    eq makeListToken(0) = emp .
+    eq makeListToken(N1) = t(N1) , makeListToken(sd(N1, 1)) .
+    eq makeListProc(0) = emp .
+    eq makeListProc(N1) = p(N1) , makeListProc(sd(N1, 1)) .
+    eq geneInitial(TKS, PIDS) = geneInitialList(geneProc(PIDS), geneToken(TKS, PIDS), geneChannel(PIDS, PIDS)) .
+
+    eq geneChannel((P, PIDS1), PIDS2) = geneChannel1(P, PIDS2)  geneChannel(PIDS1, PIDS2) .
+    eq geneChannel(emp, PIDS2) = empConfig .
+    eq geneChannel1(P1,  (P2, PIDS2)) = if (P1 =/= P2) then [ P1, P2, empChan ] geneChannel1(P1, PIDS2) else geneChannel1(P1, PIDS2) fi .
+    eq geneChannel1(P1, emp) = empConfig .
+
+    eq geneProc(P, PIDS1) = < P, passive, none > geneProc(PIDS1) .
+    eq geneProc(emp) = empConfig .
+
+    eq addToken(T, TL) = T ; TL .
+    
+    eq geneToken(TKS, PIDS) = mk(getSet(TKS, PIDS)) .
+    eq com(T, (P, PIDS)) = (T, P) , com(T, PIDS) .
+    eq com(T, emp) = empS .
+    eq getSet(emp, PIDS) = empL .
+    eq getSet((T, TKS), PIDS) = com(T, PIDS) | getSet(TKS, PIDS) .
+    
+    eq mk((PA , PAS) | empL) = PA | mk(PAS | empL) .
+    eq mk((PA , PAS) | PASL) = mk1(PA, mk(PASL)) | mk(PAS | PASL) .
+    eq mk(empS | PASL) = empL  [owise] .
+    eq mk1(PA, (PAS | PASL)) = (PA, PAS) | mk1(PA, PASL) .
+    eq mk1(PA, empL) = empL .
+    
+    eq geneInitialList(C1, (PAS | PASL), C2) = (addTokProc(C1, PAS) C2) ; geneInitialList(C1, PASL, C2) .
+    eq geneInitialList(C1, empL, C2) = empConfig .
+    
+    eq addTokProc(C1, (PA , PAS)) = addTokProc1(addTokProc(C1, PAS), PA) .
+    eq addTokProc(C1, empS) = C1 .
+    eq addTokProc1(< P1, PS, TL > C, (T, P2)) = if (P1 == P2) then  (< P1, PS, addToken(T, TL) > C) else (< P1, PS, TL > addTokProc1(C, (T, P2))) fi .
+    eq addTokProc1(emp, (T, P2)) = emp .
+
+    eq count(C ; CL) = 1 + count(CL) .
+    eq count(emp) = 0 .
+
+    op setPid : PidSet -> PidSetList .
+    op setPid1 : Pid PidSetList -> PidSetList .
+    eq setPid(P, PIDS) =   setPid1(P, setPid(PIDS)) ; setPid(PIDS) .
+    eq setPid(emp) = empPS .
+    eq setPid1(P, (PIDS ; PIDSL)) = (P, PIDS) ; setPid1(P, PIDSL) [owise] .
+    eq setPid1(P, empPS) = P .
+
+    op getPidActiveSet : Config -> PidSet .
+    eq getPidActiveSet(< P1, PS, TL > C) = if (TL =/= none) then P1, getPidActiveSet(C) else getPidActiveSet(C) fi .
+    eq getPidActiveSet([ P1, P2, empChan ] C) = getPidActiveSet(C) .
+    eq getPidActiveSet(empConfig) = emp . 
+
+    op setConfigActive : Config -> ConfigSet .
+    op setConfigActive1 : Config PidSetList -> ConfigSet .
+    op setConfigActive2 : Config PidSet -> ConfigSet .
+    op setActive : Config Pid -> Config .
+    
+    eq setConfigActive(C) = setConfigActive1(C, setPid(getPidActiveSet(C))) .
+    eq setConfigActive1(C, PIDS ; PIDSL) = setConfigActive2(C, PIDS) ;  setConfigActive1(C, PIDSL) .
+    eq setConfigActive1(C, empPS) = emp .
+    eq setConfigActive2(C, (P, PIDS)) = setConfigActive2(setActive(C, P), PIDS) .
+    eq setConfigActive2(C, emp) = C .
+    
+    eq setActive(< P1, PS, TL > C, P2) = if (P1 == P2) then  (< P1, active, TL > C) else (< P1, PS, TL > setActive(C, P2)) fi .
+    eq setActive([ P1, P2, empChan ] C, P) = [ P1, P2, empChan ] setActive(C, P) .
+    eq setActive(empConfig, P) = empConfig .
+
+    op setsetConfigActive : ConfigSet -> ConfigSet .
+    eq setsetConfigActive(C ; CL) = setConfigActive(C) ; setsetConfigActive(CL) .
+    eq setsetConfigActive(emp) = emp .
+
+    op geneInitial1 : Nat Nat -> ConfigSet .
+    eq geneInitial1(N1, N2) = setsetConfigActive(geneInitial(N1, N2)) .
+   
+endm
+
+
+mod FCA is
+     pr UDS-FCA .
+     pr SYSTEM .
+	  
+          vars P Q P' Q' : Pid .
+	  vars CS CS' : MsgSet .
+	  var BC : Config .
+ 	  vars N N1 N2 N3 N4 : Nat .
+ 	  var T : Token .
+	  vars TL TL1 : TokenList .
+	  var PS : StatePs .
+	  var LCS : LcState .        
+	  vars LB LB1 LB2 : ListPair .
+	  vars GB : Global-obser .
+	  
+	  var MC : Meta-Config .
+	  op compare : ListPair -> Bool .
+	  op countPair1 : ListPair -> Nat .
+	  op countPair2 : ListPair -> Nat .
+	  op reset : ListPair -> ListPair .
+	  op passive : Config -> Bool .
+
+	  eq reset(emp) = emp .
+	  eq reset((P, N1, N2, N3) LB) = (P, N1, N2, 0) reset(LB) .
+	  
+	  eq compare(LB) = (countPair1(LB) == countPair2(LB)) and (countPair1(LB) =/= 0) .
+	  
+	  eq countPair1(emp) = 0 .
+	  eq countPair2(emp) = 0 .
+	  
+	  eq countPair1((P, N1, N2, N3) LB) = N1 + countPair1(LB) .
+	  eq countPair2((P, N1, N2, N3) LB) = N2 + countPair2(LB) .
+	  
+	  eq passive(< Q, active, TL > BC) = false .
+    	  eq passive([P, Q, CS] BC) = passive(BC) .
+    	  eq passive(< Q, passive, TL > BC) = passive(BC) .
+    	  eq passive(empConfig) = true .
+	  
+	  crl[sndToken] :
+ 	  Base-state(< P, active, T ; TL > [P, Q, CS] BC) Local-OB((P, N1, N2, N3) LB) Global-OB(GB) 
+ 	  =>
+ 	  Base-state(< P, active, TL > [P, Q, T CS] BC) Local-OB((P, N1 + 1, N2, N3) LB) Global-OB(GB) if (N1 < 4) .
+
+          rl[recToken] :
+          Base-state(< Q, PS, TL > [P, Q, T CS] BC) Local-OB((Q, N1, N2, N3) LB) Global-OB(GB)
+ 	  =>
+ 	  Base-state(< Q, active, T ; TL > [P, Q, CS] BC) Local-OB((Q, N1, N2 + 1, N3) LB) Global-OB(GB) .
+
+
+	  rl[delete1] :
+          Base-state(< P, active, T ; TL > BC) Local-OB(LB) Global-OB(GB)
+          =>
+          Base-state(< P, active, TL > BC) Local-OB(LB) Global-OB(GB) .
+
+	  rl[passive] :
+          Base-state(< P, active, none > BC) Local-OB(LB) Global-OB(GB)
+          =>
+          Base-state(< P, passive, none > BC) Local-OB(LB) Global-OB(GB) .
+
+          rl[request] :
+          Base-state(BC) Local-OB(LB) Global-OB(LB1, N1, N2, sleep)
+          =>
+          Base-state(BC) Local-OB(LB) Global-OB(LB1, N1, N2, request) .
+	   
+	  rl[request-send] :
+          Base-state(< P, passive, TL > BC) Local-OB((P, N1, N2, 0) LB) Global-OB(LB1, N3, N4, request)
+          =>
+          Base-state(< P, passive, TL > BC) Local-OB((P, N1, N2, 1) LB) Global-OB((P, N1, N2, 0) LB1, N3 + 1, N4, request) .
+
+	  crl[terminate] :
+          Base-state(BC) Local-OB(LB) Global-OB(LB1, N1, N2, request)
+          =>
+          Base-state(BC) Local-OB(LB) Global-OB(LB1, N1, N2, terminate) if (N1 == N2) and compare(LB1) .
+
+	  *** crl[Sleep] :
+          *** Base-state(BC) Local-OB(LB) Global-OB(LB1, N1, N2, request)
+          *** =>
+          *** Base-state(BC) Local-OB(reset(LB)) Global-OB(emp, 0, N2, sleep) if (N1 == N2) and (not compare(LB1)) .           
+endm
+
+
+
+mod CL-TRANS is
+
+    pr META-LEVEL .
+    var M : Module .
+    vars L F : Qid .
+    var AtS : AttrSet .
+    vars T T' T1 T2 T3 : Term .
+    vars TL TL1 TL2 TL1' TL2' : TermList .
+    var Cd : Condition .
+    var H : Header .
+    vars IL IL' : ImportList .
+    var SS : SortSet .
+    var SSDS : SubsortDeclSet .
+    var OPDS : OpDeclSet .
+    var MAS : MembAxSet .
+    var EqS : EquationSet .
+    vars RlS RlS' : RuleSet .
+    var V : Variable .
+    var C : Constant .
+    
+    op setRls : Module RuleSet -> Module .
+    eq setRls(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, RlS') = mod H is IL sorts SS . SSDS OPDS MAS EqS RlS' endm .
+    eq setRls(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, RlS) = if RlS == none 
+    then fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm 
+    else mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm 
+    fi .
+
+    op addImports : Module ImportList -> Module .
+    eq addImports(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, IL') = mod H is IL IL' sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq addImports(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, IL') = fmod H is IL IL' sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op cl-Trans : Qid -> Module .
+    op cl-Trans : Module -> Module .
+    op cl-Trans : Module RuleSet -> RuleSet .
+
+    eq cl-Trans(H) = cl-Trans(upModule(H, false)) .
+    eq cl-Trans(M) = setRls(M, cl-Trans(M, getRls(M))) .
+
+    op checkPart : TermList -> Qid .
+    op changeSort : Term -> Term .
+    *** op getPid : Term -> Pid .
+
+
+    eq  cl-Trans(M, rl T => T' [AtS] . RlS) = rl T => T' [AtS] .   cl-Trans(M, RlS) .
+    eq  cl-Trans(M, crl T => T' if Cd [AtS] . RlS) = crl T => T' if Cd [AtS] .  cl-Trans(M, RlS) .
+    eq  cl-Trans(M, none) = none .
+    
+    ***(ceq  cl-Trans(M, rl T => T' [AtS] . RlS) =  (rl 'base-state[changeSort(T)] => 'base-state[changeSort(T')] [AtS] .) cl-Trans(M, RlS) if (checkKind(T') == 'changeState) .
+    ceq  cl-Trans(M, rl T => T' [AtS] . RlS) =  (rl 'base-state[changeSort(T)] => 'base-state[changeSort(T')] [AtS] .) cl-Trans(M, RlS) if (checkKind(T') == 'sendMessage) .
+    ceq  cl-Trans(M, rl T => T' [AtS] . RlS) =  recTrans(rl T => T' [AtS] .) cl-Trans(M, RlS) if (checkKind(T') == 'receiveMessage) .
+
+    op recTrans : RuleSet -> RuleSet .
+    eq recTrans(rl T => T' [AtS] .) = (rl '__['base-state[changeSort(T)],  '__['finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'notYet.Prog]]]]] => '__['base-state[changeSort(T')], '__['finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'notYet.Prog]]]]] [AtS] .) (rl '__['base-state[changeSort(T)], 'finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'completed.Prog]]]] => '__['base-state[changeSort(T')], 'finish-state['empBConfig.BConfig], 'control['__[
+    'CC:CtlConfig,'prog`[_`]:_[getPid(T),'completed.Prog]]]] [AtS] .) (rl '__['base-state[changeSort(T)], 'finish-state['empBConfig.BConfig], 'snapshot['__['SSC:BConfig,
+    'c-state`[_`,_`,_`]:_[getChanID(T),
+    'MMSS:MMsgQueue]]],'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),
+    'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'false.Bool]]]] => '__['base-state[changeSort(T')], 'finish-state['empBConfig.BConfig], 'snapshot['__['SSC:BConfig,
+    'c-state`[_`,_`,_`]:_[getChanID(T),'enq[
+    'MMSS:MMsgQueue, getMessage(T)]]]],'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'false.Bool]]]] [AtS] .) (rl '__['base-state[changeSort(T)], 'finish-state['empBConfig.BConfig], 'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),
+    'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'true.Bool]]]] => '__['base-state[changeSort(T')], 'finish-state['empBConfig.BConfig], 'control['__['CC:CtlConfig,'prog`[_`]:_[getPid(T),'started.Prog],'done`[_`,_`,_`]:_[getChanID(T),'true.Bool]]]] [AtS] .) .)
+
+    ceq cl-Trans(M, rl T => T' [AtS] . RlS) = (rl 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T,'__['LB:ListPair,'_`,_`,_`,_['P:Pid,'N1:Nat, 'N2:Nat,'N3:Nat]], 'GB:Global-obser]    => 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T', '__['LB:ListPair,'_`,_`,_`,_['P:Pid,'_+_['N1:Nat,'s_['0.Zero]],'N2:Nat, 'N3:Nat]], 'GB:Global-obser] [AtS] .) cl-Trans(M, RlS) if (checkPart(T) == 'send) .
+
+    ceq cl-Trans(M, rl T => T' [AtS] . RlS) = (rl 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T,'__['LB:ListPair,'_`,_`,_`,_['P:Pid,'N1:Nat, 'N2:Nat,'N3:Nat]], 'GB:Global-obser]    => 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T', '__['LB:ListPair,'_`,_`,_`,_['P:Pid, 'N1:Nat,'_+_['N2:Nat,'s_['0.Zero]],'N3:Nat]], 'GB:Global-obser] [AtS] .) cl-Trans(M, RlS) if (checkPart(T) == 'receive) .
+
+   ceq cl-Trans(M, rl T => T' [AtS] . RlS) = (rl 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T,'__['LB:ListPair,'_`,_`,_`,_['P:Pid,'N1:Nat, 'N2:Nat,'N3:Nat]], 'GB:Global-obser]    => 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T', '__['LB:ListPair,'_`,_`,_`,_['P:Pid, 'N1:Nat, 'N2:Nat,'N3:Nat]], 'GB:Global-obser] [AtS] .) cl-Trans(M, RlS) if (checkPart(T) == 'conToken) .
+
+   ceq cl-Trans(M, rl T => T' [AtS] . RlS) = (rl 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T,'__['LB:ListPair,'_`,_`,_`,_['P:Pid,'N1:Nat, 'N2:Nat,'N3:Nat]], 'GB:Global-obser]    => 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T', '__['LB:ListPair,'_`,_`,_`,_['P:Pid, 'N1:Nat, 'N2:Nat,'N3:Nat]], 'GB:Global-obser] [AtS] .) cl-Trans(M, RlS) if (checkPart(T) == 'bePassive) .
+
+endm
+
+*** Specification of function CL
+mod CL is
+
+    pr CL-TRANS .
+    pr INIT .
+    pr UDS-FCA .
+
+    sort Syn .
+    *** subsorts SortSet SubsortDeclSet OpDeclSet < Syn .
+    *** op _;_ : Syn Syn -> Syn [ctor] .
+
+    var M : Module .
+    vars L F : Qid .
+    var AtS : AttrSet .
+    vars T T' T1 T2 T3 : Term .
+    vars TL TL1 TL2 TL1' TL2' : TermList .
+    var Cd : Condition .
+    vars H H' : Header .
+    vars IL IL' : ImportList .
+    var I : Import .
+    vars SS SS' : SortSet .
+    vars SSDS SSDS' : SubsortDeclSet .
+    vars OPDS OPDS' : OpDeclSet .
+    var MAS : MembAxSet .
+    vars EqS EqS'  : EquationSet .
+    vars RlS RlS' : RuleSet .
+    var V : Variable .
+    var C : Constant .
+    var P : Type .
+    var PL : TypeSet .
+    vars TpL TpL' : TypeList .
+    vars Tp Tp' Tp'' Tp''' : Type .
+
+    op setSort : Module SortSet -> Module .
+    eq setSort(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, SS') = mod H is IL sorts SS ; SS' . SSDS OPDS MAS EqS RlS endm .
+    eq setSort(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, SS') = fmod H is IL sorts SS SS' . SSDS OPDS MAS EqS endfm .
+
+    op setSubSort : Module SubsortDeclSet -> Module .
+    eq setSubSort(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, SSDS') = mod H is IL sorts SS . SSDS SSDS' OPDS MAS EqS RlS endm .
+    eq setSubSort(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, SSDS') = fmod H is IL sorts SS . SSDS SSDS' OPDS MAS EqS endfm .
+    
+    op setEqSet : Module EquationSet -> Module .
+    eq setEqSet(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, EqS') = mod H is IL sorts SS . SSDS OPDS MAS EqS' RlS endm .
+    eq setEqSet(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, EqS') = fmod H is IL sorts SS . SSDS OPDS MAS EqS' endfm .
+
+    op setOpDecSet : Module OpDeclSet -> Module .
+    eq setOpDecSet(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, OPDS') = mod H is IL sorts SS . SSDS OPDS' MAS EqS RlS endm .
+    eq setOpDecSet(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, OPDS') = fmod H is IL sorts SS . SSDS OPDS' MAS EqS endfm .
+
+    op delImportList : ImportList -> ImportList .
+    eq delImportList(I IL) = if (I == (protecting 'UDS .)) or (I == (extending 'UDS .)) then delImportList(IL) else I delImportList(IL) fi .
+    eq delImportList(nil) = nil .
+    
+    op delImports : Module -> Module .
+    eq delImports(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm) = mod H is delImportList(IL) sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq delImports(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm) = fmod H is delImportList(IL) sorts SS . SSDS OPDS MAS EqS endfm .
+
+    op chaneName : Module Qid -> Module .
+    eq chaneName(mod H is IL sorts SS . SSDS OPDS MAS EqS RlS endm, H') = mod qid(string(H) + "-" + string(H')) is IL sorts SS . SSDS OPDS MAS EqS RlS endm .
+    eq chaneName(fmod H is IL sorts SS . SSDS OPDS MAS EqS endfm, H') = fmod qid(string(H) + "-" + string(H')) is IL sorts SS . SSDS OPDS MAS EqS endfm .
+
+
+    op getSort : OpDeclSet -> TypeSet .
+    eq getSort(none) = nil .
+    eq getSort(op F : TpL -> Tp [AtS] .) = Tp .
+
+    op changeOpe : OpDeclSet -> OpDeclSet .
+    eq changeOpe(op F : TpL -> Tp [AtS] . OPDS) = if (Tp == 'Config) then (op F : TpL -> 'Meta-Config [AtS] .) changeOpe(OPDS) else (op F : TpL -> Tp [AtS] .) changeOpe(OPDS) fi .
+    eq changeOpe(none) = none .
+
+    op reName : Constant -> Constant .
+    eq reName(C) = qid(string(getName(C)) + "." + "Meta-Config") .
+
+    op changeSort : TermList -> TermList .
+    eq changeSort(F[TL]) = F[changeSort(TL)] .
+    eq changeSort((F[TL], TL1)) = (F[changeSort(TL)], changeSort(TL1)) .
+  
+    ceq changeSort((V, TL)) = (qid(string(getName(V)) + ":" + "Meta-Config"), changeSort(TL)) if (getType(V) == 'Config) .
+    ceq changeSort((V, TL)) = (V, changeSort(TL))  if not (getType(V) == 'Config) .
+    
+    ceq changeSort((C, TL)) = (qid(string(getName(C)) + "." + "Meta-Config"), changeSort(TL)) if (getType(C) == 'Config) .
+    ceq changeSort((C, TL)) = (C, changeSort(TL)) if not (getType(C) == 'Config) .
+
+    eq changeSort(empty) = empty .
+    
+    op CL : Qid -> Module .
+    op CL : Module -> Module .
+
+    op t-State : Module -> Module .
+    op setSyn : Module Syn -> Module .
+    op getSyn : Module -> Syn .
+    op modifySyn : Syn -> Syn .
+    eq t-State(M) = setSyn(M, modifySyn(getSyn(M))) .
+
+    op t-Init : Module -> Module .
+    op t-Init : Module OpDeclSet -> OpDeclSet .
+    op t-Init : Module EquationSet -> EquationSet .
+
+    op t-Trans : Module -> Module . 
+    op t-Trans : Module RuleSet -> RuleSet .
+    op setRls : Module RuleSet -> RuleSet .
+    *** op getRls : Module -> RuleSet .
+    eq t-Trans(M) = setRls(M, t-Trans(M, getRls(M))).   
+
+    eq t-Init(M) = setEqSet(M, t-Init(M, getEqs(M))).
+    eq t-Init(M, eq T = T' [AtS] . EqS) = if (getType(T) == 'Config) then  (eq changeSort(T) = upTerm(init(downTerm(T', empConfig))) [AtS] .) t-Init(M, EqS) 
+                                          else (eq T = T' [AtS] .) t-Init(M, EqS) fi .
+
+    eq CL(H) = CL(upModule(H, false)) .
+    eq CL(M) = chaneName(delImports(setOpDecSet(setRls(cl-Initial(addImports(M, (including 'FCA .))), cl-Trans(M, getRls(M))), changeOpe(getOps(M)))), 'FCA) .
+    
+    op cl-Initial : Module -> Module .
+    op cl-Initial : Module EquationSet -> EquationSet .
+
+    eq cl-Initial(M) = setEqSet(M, cl-Initial(M, getEqs(M)))  .
+    eq cl-Initial(M, eq T = T' [AtS] . EqS) = if (getType(T) == 'Config) then (eq reName(T) = upTerm(init(downTerm(T', empConfig))) [AtS] . ) cl-Initial(M, EqS) else (eq T = T' [AtS] .) cl-Initial(M, EqS) fi .
+    eq cl-Initial(M, none) = none .
+   
+endm
+
+
+mod EXPREMINT is
+    pr SYSTEM .
+    pr CL .
+    pr GENE-INIT .
+    var MC : Meta-Config .
+    vars P Q : Pid .
+    var CS : MsgSet .
+    var BC : Config .
+    vars N N1 N2 : Nat .
+    var T : Token .
+    vars TL TL1 : TokenList .
+    var PS : StatePs .
+    var GB : Global-obser .
+    vars LB LB1 : ListPair .
+    var GS : Global-state .
+    vars T' T1 T2 T3 : Term .
+    vars TEL TEL1 TEL2 : TermList .
+    var CFL : ConfigSet .
+    var CF : Config .
+    
+    op terminateErr : Meta-Config -> Bool .
+    op passive : Config -> Bool .
+    op checkMsg : Config -> Bool .
+    op terminate :  Global-obser -> Bool .
+    
+    eq passive(< Q, active, TL > BC) = false .
+    eq passive([P, Q, CS] BC) = passive(BC) .
+    eq passive(< Q, passive, TL > BC) = passive(BC) .
+    eq passive(empConfig) = true .
+    
+    eq checkMsg(< Q, PS, TL > BC) = checkMsg(BC) .
+    eq checkMsg([P, Q, CS] BC) = if (CS =/= empChan) then false else checkMsg(BC) fi .
+    eq checkMsg(empConfig) = true .
+
+    eq terminate(LB1, N1, N2, terminate) = true .
+    eq terminate(LB1, N1, N2, GS) = false [owise] .
+
+    *** eq terminateErr(Base-state(BC) Local-OB(LB) Global-OB(GB)) = terminate(GB) and (not checkMsg(BC)) .
+    *** eq terminateErr(Base-state(BC) Local-OB(LB) Global-OB(GB)) = terminate(GB) and (not checkMsg(BC)) .
+    *** eq terminateErr(Base-state(BC) Local-OB(LB) Global-OB(GB)) = (not checkMsg(BC)) .
+    
+    
+    op Cond : Term -> Term .
+    op Cond1 : Term -> Term .
+    op unTer : Term -> Term .
+    op condTer : TermList -> Term .
+    op checkTrue : TermList -> Term .
+
+    eq Cond(T') = Cond1(T') .
+    eq Cond1('Base-state`(_`)Local-OB`(_`)Global-OB`(_`)[T1, T2, T3]) = unTer(T1) .
+    *** eq unTer(T') =  if condTer(T') == ('true.Bool,'true.Bool) then 'true.Bool else 'false.Bool fi .
+    eq unTer(T') =  if checkTrue(condTer(T')) == 'true.Bool then 'true.Bool else 'false.Bool fi .
+    eq condTer('__[T1, TEL]) =  (condTer(T1), condTer(TEL)) .
+    eq condTer((T1, TEL)) =   (condTer(T1),  condTer(TEL)) [owise] .
+    eq condTer(empty) = 'true.Bool .
+    eq condTer('<_`,_`,_>[T1, T2, T3]) =  'true.Bool .
+    eq condTer('`[_`,_`,_`][T1, T2, T3]) = if T3 == 'empChan.MsgSet then  'true.Bool else 'false.Bool fi .
+    *** eq checkTrue(('true.Bool, TEL)) = checkTrue(TEL) .
+    *** eq checkTrue(('false.Bool, TEL)) = 'false.Bool .
+    *** eq checkTrue('true.Bool) = 'true.Bool .
+    *** eq checkTrue('false.Bool) = 'false.Bool .
+    *** eq checkTrue(empty) = 'true.Bool .
+    
+    *** eq unTer(T') = 'terminateErr[downTerm(T', emp)] .
+    *** eq condTer(T') = ('_==_[T', 'emp.Meta-Config]) .
+    eq condTer(T') = ('_==_[T', 'emp.Meta-Config]) .
+
+
+    op listState1 : Term -> Meta-Config .
+    op listCheck1 : Term -> Bool .
+    
+    *** eq listCheck1(T') = if (getTerm(metaSearch(CL('SYSTEM), T', 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)['__['BC:Config, '`[_`,_`,_`]['p1.Pid,'p2.Pid,'t1.Token]],'LB:ListPair,'_`,_`,_`,_['LB1:ListPair,'N1:Nat,'N2:Nat,'terminate.Global-state]], nil, '*, unbounded, 0)) == getTerm((failure).ResultTriple?)) then true else false fi .
+
+    eq listCheck1(T') = if (getTerm(metaSearch(CL('SYSTEM), T', 'Base-state`(_`)Local-OB`(_`)Global-OB`(_`)['__['BC:Config,
+    '`[_`,_`,_`]['p_['s_['0.Zero]],'p_['s_^1['0.Zero]], 't_['s_['0.Zero]]]],'LB:ListPair,'_`,_`,_`,_['LB1:ListPair,'N1:Nat,'N2:Nat,'terminate.Global-state]], nil, '*, unbounded, 0)) == getTerm((failure).ResultTriple?)) then true else false fi .
+    
+    *** eq listCheck1(T') = (listState1(T') == empMC) .
+
+    ***(op listState1 : Term -> Meta-Config .
+    op listCheck1 : Term -> Bool .
+    eq listState1(T') = downTerm(getTerm(metaSearch(CL('SYSTEM), T', 'C:Meta-Config, nil, '*, unbounded, 0)), empMC) .
+    eq listCheck1(T') = (listState1(T') == empMC) .)
+    
+    op checkAll : Nat Nat -> Nat .
+    op checkAllList : ConfigSet -> Nat .
+    eq checkAll(N1, N2) = checkAllList(geneInitial1(N1, N2)) .
+    eq checkAllList(CF ; CFL) = if listCheck1(upTerm(init(CF))) then  checkAllList(CFL) else 1 + checkAllList(CFL) fi .
+    eq checkAllList(emp) = 0 .
+   
+
+    op checkAll1 : Nat Nat -> Nat .
+    op checkAllList1 : ConfigSet -> Nat .
+    eq checkAll1(N1, N2) = checkAllList1(geneInitial1(N1, N2)) .
+    eq checkAllList1(CF ; CFL) = if listCheck1(upTerm(init(CF))) then  checkAllList1(CFL) else 1 + checkAllList1(CFL) fi .
+    *** (eq checkAllList1(CF ; CFL) = if (CF == < p 1,active,t 1 ; none > < p 2,passive,none > < p 3,
+    passive,t 2 ; none > [p 1,p 2,empChan] [p 1,p 3,empChan] [p 2,p 1,empChan]
+    [p 2,p 3,empChan] [p 3,p 1,empChan] [p 3,p 2,empChan]) then   1 + checkAllList1(CFL) else checkAllList1(CFL) fi .)
+    eq checkAllList1(emp) = 0 .
+
+    op checkAll2 : Nat Nat -> Bool .
+    op checkAllList2 : ConfigSet -> Bool .
+    eq checkAll2(N1, N2) = checkAllList2(geneInitial1(N1, N2)) .
+    eq checkAllList2(CF ; CFL) = if listCheck1(upTerm(init(CF))) then checkAllList2(CFL) else  false  fi .
+    eq checkAllList2(emp) = true .
+
+    op unTertest : Term -> Term .
+    op T : Bool -> Term .
+    eq unTertest(T') = T(terminateErr(downTerm(T', empMC))) .
+
+    eq T(true) =  'true.Bool .
+    eq  T(false) =  'false.Bool .
+    *** eq unTertest(T') = if terminateErr(downTerm(T', empMC)) == true then 'true.Bool else 'false.Bool fi .
+    
+endm
+
